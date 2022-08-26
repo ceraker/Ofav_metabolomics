@@ -1,0 +1,366 @@
+---
+title: "data_help"
+output: html_document
+---
+
+```{r}
+#load required packages
+library(tidyr)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(vegan)
+```
+
+```{r}
+#load data
+load(".RData")
+```
+
+```{r}
+#export heat dataframe 
+write.csv(heat, "heat_clean.csv", row.names = TRUE)
+```
+
+```{r}
+#read back in with correct column names 
+heat_clean <- read.csv("heat_clean.csv", check.names = FALSE)
+View(heat_clean)
+```
+
+```{r}
+#combine heat_clean and siri and meta dataframes 
+all_clean <- merge(heat_clean, siri, by="id")
+View(all_clean)
+```
+
+```{r}
+#transform total data into longform 
+all_long2 <- gather(all_clean, coralID, peak, "9GT28.mzXML":"2GT1.mzXML", factor_key = TRUE)
+View(all_long2)
+```
+
+```{r}
+#rename meta column so they match
+meta2 <- meta
+meta2 <- meta2 %>% rename(coralID = filename)
+View(meta2)
+```
+
+```{r}
+#merge with metadata 
+all_long2 <- merge(all_long2, meta2, by="coralID", all = TRUE)
+View(all_long2)
+```
+
+```{r}
+#create new column with peak areas standardized by dryweight 
+all_long2$peak_stand <- all_long2$peak/all_long2$ATTRIBUTE_dryweight
+```
+
+```{r}
+#summarize data 
+all_long2$ATTRIBUTE_acclimation <- as.factor(all_long2$ATTRIBUTE_acclimation)
+all_long2$superclass <- as.factor(all_long2$superclass)
+all_long2$kingdom <- as.factor(all_long2$kingdom)
+all_long2$class <- as.factor(all_long2$class)
+all_long2$subclass <- as.factor(all_long2$subclass)
+all_long2$ATTRIBUTE_genotype <- as.factor(all_long2$ATTRIBUTE_genotype)
+all_long2$direct_parent <- as.factor(all_long2$direct_parent)
+
+summary(all_long2)
+```
+
+```{r}
+summary(all_long2$superclass)
+
+summary(all_long2$class)
+```
+
+```{r}
+summary(all_long_known$direct_parent)
+```
+
+```{r}
+#histograms because why not
+hist_class <- ggplot(all_long2, aes(x = class)) +
+  geom_histogram(stat = "count") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+hist_class
+
+hist_superclass <- ggplot(all_long2, aes(x = superclass)) +
+  geom_histogram(stat = "count") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+hist_superclass
+
+#these look like nothing when grouped because they don't include the actual peak data you idiot!!!!!
+```
+
+```{r}
+#bar charts grouped by acclimation treatment
+
+bar_superclass_acc <- ggplot(all_long2, aes(x = superclass, y = peak_stand, fill = ATTRIBUTE_acclimation)) +
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+bar_superclass_acc
+
+bar_class_acc <- ggplot(all_long2, aes(x = class, y = peak_stand, fill = ATTRIBUTE_acclimation)) +
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+bar_class_acc
+```
+
+```{r}
+#bar charts grouped by genotype
+
+bar_superclass_gen <- ggplot(all_long2, aes(x = superclass, y = peak_stand, fill = ATTRIBUTE_genotype)) +
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+bar_superclass_gen
+
+bar_class_gen <- ggplot(all_long2, aes(x = class, y = peak_stand, fill = ATTRIBUTE_genotype)) +
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+bar_class_gen
+```
+
+```{r}
+colnames(all_long2)
+```
+
+```{r}
+colnames(all_wide)
+```
+
+#reformat the data so it actually works with a PCA
+```{r}
+#combine heat_clean and siri datasets
+heat.siri <- cbind(heat_clean, siri)
+
+#not sure I actually needed to do this
+```
+
+```{r}
+#bar charts grouped by with coral info on x
+
+bar_acc_class <- ggplot(data=subset(all_long2, !is.na(ATTRIBUTE_acclimation)), aes(x = ATTRIBUTE_acclimation, y = peak_stand, fill = class)) +
+  geom_bar(stat = "identity") + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("Acclimation Treatment") + ylab("Standardized Peak Area")
+bar_acc_class
+
+bar_gen_class <- ggplot(data=subset(all_long2, !is.na(ATTRIBUTE_acclimation)), aes(x = ATTRIBUTE_genotype, y = peak_stand, fill = class)) +
+  geom_bar(stat = "identity") + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("Genotype") + ylab("Standardized Peak Area")
+bar_gen_class
+```
+
+```{r}
+#create dataframe including only known classes
+all_long_known <- all_long2
+all_long_known <- subset(all_long_known, class!="unclassified")
+View(all_long_known)
+```
+
+```{r}
+#bar charts grouped by with coral info on x including only known classes
+
+bar_acc_class_k <- ggplot(data=subset(all_long_known, !is.na(ATTRIBUTE_acclimation)), aes(x = ATTRIBUTE_acclimation, y = peak_stand, fill = class)) +
+  geom_bar(stat = "identity") + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("Acclimation Treatment") + ylab("Standardized Peak Area")
+bar_acc_class_k
+
+bar_gen_class_k <- ggplot(data=subset(all_long_known, !is.na(ATTRIBUTE_acclimation)), aes(x = ATTRIBUTE_genotype, y = peak_stand, fill = class)) +
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("Acclimation Treatment") + ylab("Standardized Peak Area")
+bar_gen_class_k
+```
+
+
+```{r}
+#create new dataframes for diversity measurements because I'm paranoid
+div_all <- agg_class_norm_all
+div_known <- agg_class_norm_known
+
+#create dataframe with just the first four columns to rebind later because I'm lazy
+info <- agg_class_norm_all[ ,c(1:4)]
+
+#create columns with totals
+div_all$total <- apply(div_all[ ,c(5:30)], 1, sum)
+div_known$total <- apply(div_known[ ,c(5:29)], 1, sum)
+```
+
+```{r}
+# Turn percent cover to relative abundance by dividing each value by sample total abundance
+div_all <- div_all[ ,5:30]/div_all[ ,31]
+div_known <- div_known[ ,5:29]/div_known[ ,30]
+
+#check total abundance (should be 1)
+apply(div_all, 1, sum)
+```
+
+```{r}
+#rebind metadata columns
+div_all <- cbind(info, div_all)
+div_known <- cbind(info, div_known)
+```
+
+```{r}
+#diversity and richness grouped by acclimation and genotype 
+diversity(div_all[ ,5:30], index = "shannon")
+```
+
+#agg_class
+```{r}
+#create new dataset that has samples as rows and peak areas grouped by class
+agg_class <- aggregate(peak_stand ~ coralID + class, data = all_long2, FUN = sum, na.rm = TRUE)
+
+#put in wide form so compound classes are column titles
+agg_class_wide <- spread(agg_class, class, peak_stand)
+
+#merge with metadata
+agg_class_meta <- merge(agg_class_wide, meta2, by="coralID")
+
+#remove unnecessary columns (dates etc)
+agg_class_meta <- agg_class_meta[ -c(32:36)]
+
+#make sure acclimation treatment and genotype columns are being read as factor
+agg_class_meta$ATTRIBUTE_acclimation <- as.factor(agg_class_meta$ATTRIBUTE_acclimation)
+agg_class_meta$ATTRIBUTE_genotype <- as.factor(agg_class_meta$ATTRIBUTE_genotype)
+```
+
+```{r}
+#standardize by sample weight
+agg_class_norm_all <- agg_class_meta
+
+agg_class_norm_all <- agg_class_norm_all[ ,2:27]/agg_class_norm_all[ ,31]
+```
+
+```{r}
+#add 1000 to all variables to account for 0 values and log normalization
+agg_class_norm_all <- log((agg_class_norm_all + 1000), 2)
+
+#recombine with metadata
+agg_class_norm_all <- cbind(agg_class_meta[ ,28:31],agg_class_norm_all)
+```
+
+```{r}
+#create dataframe including only classified compounds
+agg_class_norm_known <- agg_class_norm_all[ -c(30)]
+
+#save as csv
+write.csv(agg_class_norm_known,"agg_class_norm_known.csv")
+```
+
+#agg_parent
+```{r}
+#create new dataset that has samples as rows and peak areas grouped by class
+agg_parent <- aggregate(peak_stand ~ coralID + direct_parent, data = all_long2, FUN = sum, na.rm = TRUE)
+
+#put in wide form so compound classes are column titles
+agg_parent_wide <- spread(agg_parent, direct_parent, peak_stand)
+
+#merge with metadata
+agg_parent_meta <- merge(agg_parent_wide, meta2, by="coralID")
+
+#remove unnecessary columns (dates etc)
+agg_parent_meta <- agg_parent_meta[ -c(60:64)]
+
+#make sure acclimation treatment and genotype columns are being read as factor
+agg_parent_meta$ATTRIBUTE_acclimation <- as.factor(agg_parent_meta$ATTRIBUTE_acclimation)
+agg_parent_meta$ATTRIBUTE_genotype <- as.factor(agg_parent_meta$ATTRIBUTE_genotype)
+```
+
+```{r}
+#standardize by sample weight
+agg_parent_norm_all <- agg_parent_meta
+
+agg_parent_norm_all <- agg_parent_norm_all[ ,2:55]/agg_parent_norm_all[ ,59]
+```
+
+```{r}
+#add 1000 to all variables to account for 0 values and log normalization
+agg_parent_norm_all <- log((agg_parent_norm_all + 1000), 2)
+
+#recombine with metadata
+agg_parent_norm_all <- cbind(agg_parent_meta[ ,56:59],agg_parent_norm_all)
+```
+
+```{r}
+#create dataframe including only classified compounds
+agg_parent_norm_known <- agg_parent_norm_all[ -c(58)]
+
+#save as csv
+write.csv(agg_parent_norm_known,"agg_parent_norm_known.csv")
+```
+
+#Aggregate by individual compounds
+```{r}
+#create new peak_norm data that is log transformed
+all_long2$peak_norm <- log((all_long2$peak_stand + 1000))
+```
+
+```{r}
+#create new dataset that has samples as rows and peak areas grouped by class
+agg_comp <- aggregate(peak_norm ~ coralID + id, data = all_long2, FUN = sum, na.rm = TRUE)
+
+#put in wide form so compound classes are column titles
+agg_comp_wide <- spread(agg_comp, id, peak_norm)
+
+#merge with metadata
+agg_all <- merge(agg_comp_wide, meta2, by="coralID")
+
+#remove unnecessary columns (dates etc)
+agg_all <- agg_all[ -c(350:354)]
+
+#make sure acclimation treatment and genotype columns are being read as factor
+agg_all$ATTRIBUTE_acclimation <- as.factor(agg_all$ATTRIBUTE_acclimation)
+agg_all$ATTRIBUTE_genotype <- as.factor(agg_all$ATTRIBUTE_genotype)
+```
+
+```{r}
+#change the column order so descriptive columns are grouped at the beginning
+#also remove coralID column (that info is redundant)
+agg_all <- agg_all[ , c(346, 347, 348, 349, 2:345)]
+View(agg_all)
+```
+
+```{r}
+#save as csv
+write.csv(agg_all,"agg_all.csv")
+write.csv(agg_parent_norm_all, "agg_parent_norm_all.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.
