@@ -1,0 +1,636 @@
+---
+title: "wgcna"
+output: html_document
+date: '2022-07-11'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#code modified from Kevin as always 
+
+```{r dependencies, warning=FALSE, message=FALSE}
+#load packages
+library("ggplot2")
+library('vegan')
+library('factoextra')
+library('ggfortify')
+library('naniar')
+library('cowplot')
+library("BiocManager")
+BiocManager::install('mixOmics')
+library("mixOmics")
+library("tidyverse")
+library("RVAideMemoire")
+library("VennDiagram")
+library("broom")
+library(janitor)
+library(mdatools)
+```
+
+```{r load packages, warning=FALSE, message=FALSE}
+#install.packages("RSQLite")
+library(RSQLite)
+BiocManager::install('genefilter')
+library("genefilter")
+#BiocManager::install('locfit')
+library("locfit")
+#BiocManager::install('DESeq2')
+library("DESeq2")
+library("RColorBrewer")
+#BiocManager::install("GO.db")
+library("GO.db")
+#BiocManager::install("impute")
+library("impute")
+#BiocManager::install("preprocessCore")
+library("preprocessCore")
+#BiocManager::install("WGCNA")
+library("WGCNA")
+library("flashClust")
+library("gridExtra")
+#BiocManager::install("ComplexHeatmap")
+library("ComplexHeatmap")
+#BiocManager::install("goseq")
+library("goseq")
+library("dplyr")
+#BiocManager::install("clusterProfiler")
+library("clusterProfiler")
+library("pheatmap")
+library("magrittr")
+library("reshape2")
+```
+
+#code from Kevin and https://bioinformaticsworkbook.org/tutorials/wgcna.html#gsc.tab=0
+
+```{r prep data}
+#prepare data with samples in columns and metabolites in rows
+agg_all3 <- t(agg_all2)
+
+#make first row column names (metabolites are already row names)
+agg_all3 <- agg_all3 %>% row_to_names(row_number = 1)
+```
+
+## Data filtering: PoverA and genefilter
+
+Conduct data filtering, this includes:  
+
+*pOverA*: Specifying the minimum count for a proportion of samples for each metabolite. Here, we are using a pOverA of 0.0146. This is because we have 206 samples with a minimum of n=3 samples per group Therefore, we will accept genes that are present in 3/206 = 0.0146 of the samples because we expect different metabolites by groups as demonstrated by PLSDA analysis. We are further setting the minimum value of metabolites to 7 (median normalized), such that 4% of the samples must have a non-zero normalized metabolite presence in order for the metabolite to remain in the data set.  
+
+Filter in the package "genefilter". Pre-filtering our dataset to reduce the memory size dataframe, increase the speed of the transformation and testing functions, and improve quality of statistical analysis by removing low-coverage counts. Removed counts could represent outliers in the data and removing these improves sensitivity of statistical tests.   
+
+``` {r data filering, echo=TRUE, warning=FALSE, message=FALSE}
+filt <- filterfun(pOverA(0.0146,0.07))
+
+#create filter for the counts data
+gfilt <- genefilter(agg_all3, filt)
+
+#identify genes to keep by count filter
+keep <- agg_all3[gfilt,]
+
+#identify gene lists
+n.keep <- rownames(keep)
+
+#gene count data filtered in PoverA, P percent of the samples have counts over A
+agg_all_filt <- as.data.frame(agg_all3[which(rownames(agg_all3) %in% n.keep),])
+
+#How many rows do we have before and after filtering?
+nrow(agg_all3) #Before
+nrow(agg_all_filt) #After
+#Filtering removed 12 metabolites, 332 metabolites are used in analysis.  
+```
+
+
+#Outlier detection
+``` {r outlier detection, echo=TRUE, warning=FALSE, message=FALSE}
+#Checking that all row and column names match. Should return "TRUE"
+all(rownames(meta$ATTRIBUTE_sampleID) %in% colnames(agg_all_filt))
+all(rownames(meta$ATTRIBUTE_sampleID) == colnames(agg_all_filt))
+```
+
+```{r metabolite outliers}
+sampleTree = hclust(dist(agg_all_filt), method = "average");
+# Plot the sample tree: Open a graphic output window of size 12 by 9 inches
+# The user should change the dimensions if the window is too large or too small.
+
+pdf("/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/outliers_metabolites.pdf")
+#pdf(file=paste0(path, "outliers_metabolites.pdf"))
+
+plot(sampleTree, main = "Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2)
+dev.off()
+
+#no metabolite outliers
+```
+
+```{r sample outliers}
+#Transpose such that samples are in rows and metabolites are in columns.
+tagg_all_filt <- t(agg_all_filt)
+
+#Look for outliers by examining tree of samples  
+sampleTree = hclust(dist(tagg_all_filt), method = "average");
+
+# Plot the sample tree: Open a graphic output window of size 12 by 9 inches
+# The user should change the dimensions if the window is too large or too small.
+pdf("/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/outliers_samples.pdf")
+
+plot(sampleTree, main = "Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2)
+dev.off()
+```
+
+# 2. Network construction and consensus modlue detection
+## Choosing a soft-thresholding power: Analysis of a network topology β
+``` {r soft threshold, echo=TRUE, warning=FALSE, message=FALSE}
+# Choose a set of soft-thresholding powers
+#powers <- c(seq(from = 1, to=200, by=2), c(21:30)) #Create a string of numbers from 1 through 10, and even numbers from 10 through 20
+
+allowWGCNAThreads() 
+powers <- c(c(1:20), seq(from = 12, to=20, by=2)) #Create a string of numbers from 1 through 10, and even numbers from 10 through 20
+
+# Call the network topology analysis function
+sft <-pickSoftThreshold(tagg_all_filt, powerVector = powers, verbose = 5)
+
+#Plot the results.  
+sizeGrWindow(9, 5)
+par(mfrow = c(1,2));
+cex1 = 0.9;
+# # # Scale-free topology fit index as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+      xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",
+     main = paste("Scale independence"));
+ text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     labels=powers,cex=cex1,col="red");
+# # # this line corresponds to using an R^2 cut-off
+ abline(h=0.8,col="red")
+# # # Mean connectivity as a function of the soft-thresholding power
+ plot(sft$fitIndices[,1], sft$fitIndices[,5],
+     xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",
+     main = paste("Mean connectivity"))
+ text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
+
+# Soft Threshold power is 11
+```
+
+```{r numeric}
+#change dataframe to matrix
+tagg_all_filt <- as.data.frame(tagg_all_filt)
+tagg_all_filt <- tagg_all_filt %>% mutate( across( where(is.character), ~ as.numeric(.x) ) )
+```
+
+```{r pick power}
+picked_power = 11
+temp_cor <- cor       
+cor <- WGCNA::cor         # Force it to use WGCNA cor function (fix a namespace conflict issue)
+netwk <- blockwiseModules(tagg_all_filt,                # <= input here
+
+                          # == Adjacency Function ==
+                          power = picked_power,                # <= power here
+                          networkType = "signed",
+
+                          # == Tree and Block Options ==
+                          deepSplit = 2,
+                          pamRespectsDendro = F,
+                          # detectCutHeight = 0.75,
+                          minModuleSize = 5,
+                          maxBlockSize = 4000,
+
+                          # == Module Adjustments ==
+                          reassignThreshold = 0,
+                          mergeCutHeight = 0.25,
+
+                          # == TOM == Archive the run results in TOM file (saves time)
+                          saveTOMs = T,
+                          saveTOMFileBase = "ER",
+
+                          # == Output Options
+                          numericLabels = T,
+                          verbose = 3)
+
+cor <- temp_cor  #return cor function to original namespace 
+```
+
+```{r dendrogram}
+# Convert labels to colors for plotting
+mergedColors = labels2colors(netwk$colors)
+# Plot the dendrogram and the module colors underneath
+plotDendroAndColors(
+  netwk$dendrograms[[1]],
+  mergedColors[netwk$blockGenes[[1]]],
+  "Module colors",
+  dendroLabels = FALSE,
+  hang = 0.03,
+  addGuide = TRUE,
+  guideHang = 0.05 )
+```
+
+#Relate module (cluster) assignments to treatment groups
+
+```{r relate clusters}
+module_df <- data.frame(
+  metabolite = names(netwk$colors),
+  colors = labels2colors(netwk$colors)
+)
+
+module_df[1:5,]
+#>            metabolite                colors
+#> 1	00056bcaf3eb04f1d988da98936bc1d5	turquoise		
+#> 2	01678bcea2b58f4934ca047a3d8d6b97	turquoise		
+#> 3	01bd3fe94455ce451ccbe6fc57069261	turquoise		
+#> 4	031bc75c4d162ff7bc8bf302eb73565d	green		
+#> 5	034640392fd761ca55a00036940c73c1	blue
+
+write.csv(module_df, "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/metabolite_modules.csv")
+```
+
+```{r calculate eigan}
+#calcuate an Eigangene (or Eiganmetabolite) (hypothetical central metabolite) for each module
+
+# Get Module Eigengenes per cluster
+MEs <- moduleEigengenes(tagg_all_filt, mergedColors)$eigengenes
+
+# Reorder modules so similar modules are next to each other
+MEs <- orderMEs(MEs)
+module_order = names(MEs) %>% gsub("ME","", .)
+
+# Add Sample names
+MEs0 <- MEs
+MEs0$Coral.ID = row.names(MEs)
+
+# tidy & plot data
+mME = MEs0 %>%
+  pivot_longer(-Coral.ID) %>%
+  mutate(
+    name = gsub("ME", "", name),
+    name = factor(name, levels = module_order)
+  )
+
+mME %>% ggplot(., aes(x=Coral.ID, y=name, fill=value)) +
+  geom_tile() +
+  theme_bw() +
+  scale_fill_gradient2(
+    low = "blue",
+    high = "red",
+    mid = "white",
+    midpoint = 0,
+    limit = c(-1,1)) +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(title = "Module-trait Relationships", y = "Modules", fill="corr")
+
+```
+
+
+## Relate Module (cluster) Assignments to Groupings: ACCLIMATION
+
+Prepare trait data. Data has to be numeric, so I will substitute acclimation treatment/genotype for numeric values. The "trait" we are considering here is Grouping  
+
+Make a dataframe that has a column for each attribute name and a row for samples. Populate a 1 for samples that match each Group and a 0 for samples not matching respective Groups 
+
+This process changes Groups from a categorical variable into a binary variable. This will allow for correlations between mean eigengenes and Groups  
+
+```{r prep grouping data ACC}
+meta3 <- meta2[,c(2,3,4)]
+
+meta3$num <- c("1")
+allACC <- as.data.frame(pivot_wider(meta3, names_from = ATTRIBUTE_acclimation, values_from = num, id_cols = ATTRIBUTE_sampleID))
+allACC[is.na(allACC)] <- c("0")
+rownames(allACC) <- allACC$ATTRIBUTE_sampleID
+datACC <- allACC[c(1:207),c(2:6)] #remove blanks and "NA" acclimation
+head(datACC)
+```
+
+```{r define numbers}
+# Define numbers of genes and samples and print. 
+nMetabolites = ncol(tagg_all_filt)
+nSamples = nrow(tagg_all_filt)
+nMetabolites #332
+nSamples #206
+```
+
+```{r dendrogram ACC}
+#get rid of OBY3 sample as it was filtered out during previous analysis 
+datACC2 <- datACC[c(-3),]
+
+# Correlations of traits with eigengenes
+moduleAccCor = cor(MEs, datACC2, use = "p");
+moduleAccPvalue = corPvalueStudent(moduleAccCor, nSamples);
+Colors=sub("ME","", names(MEs))
+moduleAccTree = hclust(dist(t(moduleAccCor)), method = "average")
+pdf(file="/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/ModuleAccClusterTree.pdf", height=8, width=22)
+plot(moduleAccTree)
+dev.off()
+
+# Correlations of metabolites with eigengenes. Calculate correlations between ME's and groups 
+moduleGeneCor=cor(MEs,tagg_all_filt)
+moduleGenePvalue = corPvalueStudent(moduleGeneCor, nSamples);
+head(moduleGenePvalue)
+```
+
+```{r kME values}
+#Calculate kME values (module membership). 
+#datKME = signedKME(tagg_all_filt, MEs0, outputColumnName = "kME")
+#head(datKME)
+
+#Save module colors and labels for use in subsequent analyses.  
+#save(MEs, moduleLabels, moduleColors, geneTree, file = "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/NetworkConstructionWGCNA.RData") 
+```
+
+## Plot module-trait associations: ACCLIMATION
+
+Represent module trait correlations as a heatmap 
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+textMatrix = paste(signif(moduleAccCor, 2), "\n(",signif(moduleAccPvalue, 1), ")", sep = "")
+dim(textMatrix) = dim(moduleAccCor)
+head(textMatrix)
+
+labeledHeatmap(Matrix = moduleAccCor, xLabels = names(datACC2),  yLabels = names(MEs), ySymbols = names(MEs), cex.lab.y= 0.55, cex.lab.x= 0.55, colors = blueWhiteRed(50), textMatrix = textMatrix, setStdMargins = TRUE, cex.text = 0.25, textAdj = , zlim = c(-1,1), main = paste("Module-trait relationships"))
+
+#pdf("Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/Module_trait_relationships.pdf")
+
+labeledHeatmap(Matrix = moduleAccCor, xLabels = names(datACC2),  yLabels = names(MEs), ySymbols = names(MEs), cex.lab.y= 0.55, cex.lab.x= 0.55, colors = blueWhiteRed(50), textMatrix = textMatrix, setStdMargins = TRUE, cex.text = 0.25, textAdj = , zlim = c(-1,1), main = paste("Module-trait relationships"))
+dev.off()
+```
+
+# Generate a complex heatmap of module-trait relationships.  
+
+```{r acc heatmap, echo=TRUE, warning=FALSE, message=FALSE}
+#bold sig p-values
+#dendrogram with WGCNA MEtree cut-off
+#colored y-axis
+#Create list of pvalues for eigengene correlation with specific life stages
+heatmappval <- signif(moduleAccPvalue, 1)
+#Make list of heatmap row colors
+htmap.colors <- names(MEs)
+htmap.colors <- gsub("ME", "", htmap.colors)
+library(dendsort)
+row_dend = dendsort(hclust(dist(moduleAccCor)))
+col_dend = dendsort(hclust(dist(t(moduleAccCor))))
+
+#pdf(file="Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/Module-trait-relationship-heatmap.pdf", height = 8, width = 8)
+
+ht=Heatmap(moduleAccCor, name = "Eigengene", column_title = "Module-Group Eigengene Correlation", 
+        col = blueWhiteRed(50), 
+        row_names_side = "left", 
+        row_dend_side = "left",
+        width = unit(4, "in"), 
+        height = unit(3.5, "in"), 
+        column_dend_reorder = TRUE, 
+        cluster_columns = col_dend,
+        row_dend_reorder = FALSE,
+        column_split = 6, 
+        column_dend_height = unit(.5, "in"),
+        cluster_rows = row_dend, 
+        row_gap = unit(2.5, "mm"), 
+        border = TRUE,
+        cell_fun = function(j, i, x, y, w, h, col) {
+        if(heatmappval[i, j] < 0.05) {
+            grid.text(sprintf("%s", heatmappval[i, j]), x, y, gp = gpar(fontsize = 10, fontface = "bold"))
+        }
+        else {
+            grid.text(sprintf("%s", heatmappval[i, j]), x, y, gp = gpar(fontsize = 10, fontface = "plain"))
+        }},
+        column_names_gp =  gpar(fontsize = 12, border=FALSE),
+        row_names_gp = gpar(fontsize = 12, alpha = 0.75, border = FALSE))
+ht
+#dev.off()
+```
+
+# Plot mean eigengene values for each module
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+# Number of each metabolites in each module 
+row_mod_num <- data.frame(table(module_df$colors))
+
+# Bring in additional metadata
+sample_metadata <- meta2 %>% select(ATTRIBUTE_sampleID, ATTRIBUTE_acclimation, ATTRIBUTE_genotype)
+sample_metadata$Coral.ID <- as.factor(sample_metadata$ATTRIBUTE_sampleID)
+sample_metadata$ATTRIBUTE_acclimation <- as.factor(sample_metadata$ATTRIBUTE_acclimation)
+sample_metadata$ATTRIBUTE_genotype <- as.factor(sample_metadata$ATTRIBUTE_genotype)
+
+mME_meta <- merge(mME, sample_metadata, by = "Coral.ID") %>%
+  rename(Module = name)
+mME_meta$Module <- factor(mME_meta$Module, levels = c("brown", "turquoise", "blue", "yellow", "red", "green", "grey"))
+module_order <- c("brown", "turquoise", "blue", "yellow", "red", "green", "grey")
+mME_meta2 <- mME_meta %>% arrange(match(Module, module_order))
+
+expression_plots<-mME_meta%>%
+#  group_by(Module) %>%
+  ggplot(aes(x=ATTRIBUTE_acclimation, y=value, fill=ATTRIBUTE_acclimation)) +
+  facet_grid(Module ~.)+
+  ylab("Mean Module Eigenegene Value") +
+  geom_hline(yintercept = 0, linetype="dashed", color = "grey")+
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.5), alpha = 0.7) +
+  stat_summary(fun=mean, geom="line", aes(group=ATTRIBUTE_acclimation, color = ATTRIBUTE_acclimation), position = position_dodge(width = 0.5))  + 
+  geom_point(pch = 21, position = position_dodge(width = 0.5)) +
+  #scale_fill_manual(values=c("#CC3300", "#46008B", "#468B00")) +
+  #scale_color_manual(values=c("#CC3300", "#46008B", "#468B00")) + 
+  #scale_x_discrete(labels=c("0" = "Day 0", "37" = "Day 37", "52" = "Day 52")) +
+  xlab("Acclimation") + #Axis titles
+  theme_bw() + theme(panel.border = element_rect(color="black", fill=NA, size=0.75), panel.grid.major = element_blank(), #Makes background theme white
+                     panel.grid.minor = element_blank(), axis.line = element_blank()) +
+  theme(legend.position = "none")
+  theme(axis.text = element_text(size = 8, color = "black"),
+        axis.title = element_text(size = 12, color = "black")); expression_plots
+
+#ggsave(filename="Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/expression_eigengene.jpeg", plot=expression_plots, dpi=300, width=7, height=10, units="in")
+```
+
+## Relate Module (cluster) Assignments to Groupings: GENOTYPE
+
+```{r prep grouping data GEN}
+meta3 <- meta2[,c(2,3,4)]
+
+meta3$num <- c("1")
+meta3 <- meta3[c(1:207),] #remove blank samples
+allGEN <- as.data.frame(pivot_wider(meta3, names_from = ATTRIBUTE_genotype, values_from = num, id_cols = ATTRIBUTE_sampleID))
+allGEN[is.na(allGEN)] <- c("0")
+rownames(allGEN) <- allGEN$ATTRIBUTE_sampleID
+datGEN <- allGEN[c(1:207),c(2:11)] #remove blanks and "NA" acclimation
+head(datGEN)
+```
+
+```{r define numbers}
+# Define numbers of genes and samples and print. 
+nMetabolites = ncol(tagg_all_filt)
+nSamples = nrow(tagg_all_filt)
+nMetabolites #332
+nSamples #206
+```
+
+```{r dendrogram GEN}
+#get rid of OBY3 sample as it was filtered out during previous analysis 
+datGEN2 <- datGEN[c(-3),]
+
+# Correlations of traits with eigengenes
+moduleGenCor = cor(MEs, datGEN2, use = "p");
+moduleGenPvalue = corPvalueStudent(moduleGenCor, nSamples);
+Colors=sub("ME","", names(MEs))
+moduleGenTree = hclust(dist(t(moduleGenCor)), method = "average")
+pdf(file="/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/ModuleAccClusterTreeGen.pdf", height=8, width=22)
+plot(moduleGenTree)
+dev.off()
+
+# Correlations of metabolites with eigengenes. Calculate correlations between ME's and groups 
+moduleGeneCor=cor(MEs,tagg_all_filt)
+moduleGenePvalue = corPvalueStudent(moduleGeneCor, nSamples);
+head(moduleGenePvalue)
+```
+
+```{r kME values}
+#Calculate kME values (module membership). 
+#datKME = signedKME(tagg_all_filt, MEs0, outputColumnName = "kME")
+#head(datKME)
+
+#Save module colors and labels for use in subsequent analyses.  
+#save(MEs, moduleLabels, moduleColors, geneTree, file = "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/NetworkConstructionWGCNA.RData") 
+```
+
+## Plot module-trait associations: GENOTYPE
+
+Represent module trait correlations as a heatmap 
+```{r heatmap GEN, echo=TRUE, warning=FALSE, message=FALSE}
+textMatrix = paste(signif(moduleGenCor, 2), "\n(",signif(moduleGenPvalue, 1), ")", sep = "")
+dim(textMatrix) = dim(moduleGenCor)
+head(textMatrix)
+
+labeledHeatmap(Matrix = moduleGenCor, xLabels = names(datGEN2),  yLabels = names(MEs), ySymbols = names(MEs), cex.lab.y= 0.55, cex.lab.x= 0.55, colors = blueWhiteRed(50), textMatrix = textMatrix, setStdMargins = TRUE, cex.text = 0.25, textAdj = , zlim = c(-1,1), main = paste("Module-trait relationships GEN"))
+
+#pdf("Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/Module_trait_relationships_gen.pdf")
+
+labeledHeatmap(Matrix = moduleGenCor, xLabels = names(datGEN2),  yLabels = names(MEs), ySymbols = names(MEs), cex.lab.y= 0.55, cex.lab.x= 0.55, colors = blueWhiteRed(50), textMatrix = textMatrix, setStdMargins = TRUE, cex.text = 0.45, textAdj = , zlim = c(-1,1), main = paste("Module-trait relationships GEN"))
+dev.off()
+```
+
+# Generate a complex heatmap of module-trait relationships.  
+
+```{r acc heatmap, echo=TRUE, warning=FALSE, message=FALSE}
+#bold sig p-values
+#dendrogram with WGCNA MEtree cut-off
+#colored y-axis
+#Create list of pvalues for eigengene correlation with specific life stages
+heatmappval_gen <- signif(moduleGenPvalue, 1)
+#Make list of heatmap row colors
+htmap.colors <- names(MEs)
+htmap.colors <- gsub("ME", "", htmap.colors)
+library(dendsort)
+row_dend = dendsort(hclust(dist(moduleGenCor)))
+col_dend = dendsort(hclust(dist(t(moduleGenCor))))
+
+#pdf(file="Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/Module-trait-relationship-heatmap.pdf", height = 8, width = 8)
+
+ht_gen=Heatmap(moduleGenCor, name = "Eigengene", column_title = "Module-Group Eigengene Correlation", 
+        col = blueWhiteRed(50), 
+        row_names_side = "left", 
+        row_dend_side = "left",
+        width = unit(4, "in"), 
+        height = unit(3.5, "in"), 
+        column_dend_reorder = TRUE, 
+        cluster_columns = col_dend,
+        row_dend_reorder = FALSE,
+        column_split = 6, 
+        column_dend_height = unit(.5, "in"),
+        cluster_rows = row_dend, 
+        row_gap = unit(2.5, "mm"), 
+        border = TRUE,
+        cell_fun = function(j, i, x, y, w, h, col) {
+        if(heatmappval_gen[i, j] < 0.05) {
+            grid.text(sprintf("%s", heatmappval_gen[i, j]), x, y, gp = gpar(fontsize = 10, fontface = "bold"))
+        }
+        else {
+            grid.text(sprintf("%s", heatmappval_gen[i, j]), x, y, gp = gpar(fontsize = 10, fontface = "plain"))
+        }},
+        column_names_gp =  gpar(fontsize = 12, border=FALSE),
+        row_names_gp = gpar(fontsize = 12, alpha = 0.75, border = FALSE))
+ht_gen
+#dev.off()
+```
+
+# Plot mean eigengene values for each module
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+# Number of each metabolites in each module 
+row_mod_num <- data.frame(table(module_df$colors))
+
+# Bring in additional metadata
+sample_metadata <- meta2 %>% select(ATTRIBUTE_sampleID, ATTRIBUTE_acclimation, ATTRIBUTE_genotype)
+sample_metadata$Coral.ID <- as.factor(sample_metadata$ATTRIBUTE_sampleID)
+sample_metadata$ATTRIBUTE_acclimation <- as.factor(sample_metadata$ATTRIBUTE_acclimation)
+sample_metadata$ATTRIBUTE_genotype <- as.factor(sample_metadata$ATTRIBUTE_genotype)
+
+mME_meta <- merge(mME, sample_metadata, by = "Coral.ID") %>%
+  rename(Module = name)
+mME_meta$Module <- factor(mME_meta$Module, levels = c("brown", "turquoise", "blue", "yellow", "red", "green", "grey"))
+module_order <- c("brown", "turquoise", "blue", "yellow", "red", "green", "grey")
+mME_meta2 <- mME_meta %>% arrange(match(Module, module_order))
+
+expression_plots<-mME_meta%>%
+#  group_by(Module) %>%
+  ggplot(aes(x=ATTRIBUTE_genotype, y=value, fill=ATTRIBUTE_genotype)) +
+  facet_grid(Module ~.)+
+  ylab("Mean Module Eigenegene Value") +
+  geom_hline(yintercept = 0, linetype="dashed", color = "grey")+
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.5), alpha = 0.7) +
+  stat_summary(fun=mean, geom="line", aes(group=ATTRIBUTE_genotype, color = ATTRIBUTE_genotype), position = position_dodge(width = 0.5))  + 
+  geom_point(pch = 21, position = position_dodge(width = 0.5)) +
+  #scale_fill_manual(values=c("#CC3300", "#46008B", "#468B00")) +
+  #scale_color_manual(values=c("#CC3300", "#46008B", "#468B00")) + 
+  #scale_x_discrete(labels=c("0" = "Day 0", "37" = "Day 37", "52" = "Day 52")) +
+  xlab("Acclimation") + #Axis titles
+  theme_bw() + theme(panel.border = element_rect(color="black", fill=NA, size=0.75), panel.grid.major = element_blank(), #Makes background theme white
+                     panel.grid.minor = element_blank(), axis.line = element_blank()) +
+  theme(legend.position = "none")
+  theme(axis.text = element_text(size = 8, color = "black"),
+        axis.title = element_text(size = 12, color = "black")); expression_plots
+
+#ggsave(filename="Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/WGCNA/expression_eigengene.jpeg", plot=expression_plots, dpi=300, width=7, height=10, units="in")
+```
+# Pathway Analysis for each module
+
+```{r select metabolites, echo=TRUE, warning=FALSE, message=FALSE}
+module_df <- read.csv("./output/WGCNA/metabolite_modules.csv")
+module_df <- module_df %>% rename(Module = colors)
+
+# Select metabolites for each module 
+#brown (n=15), turquoise (n=221), blue (n=45), yellow (n=12), red (n=9), green (n=11), grey (n=19)
+module_brown <- module_df %>% filter(Module == "brown")  %>% select(metabolite)
+module_turquoise <- module_df %>% filter(Module == "turquoise")  %>% select(metabolite)
+module_blue <- module_df %>% filter(Module == "blue")  %>% select(metabolite)
+module_yellow <- module_df %>% filter(Module == "yellow")  %>% select(metabolite)
+module_red <- module_df %>% filter(Module == "red")  %>% select(metabolite)
+module_green <- module_df %>% filter(Module == "green")  %>% select(metabolite)
+module_grey <- module_df %>% filter(Module == "grey")  %>% select(metabolite)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.
