@@ -1,0 +1,14 @@
+"","Feature.status","Comparison","A"
+"1","Identified","acc1vs2",15
+"2","Identified","acc1vs3",11
+"3","Identified","acc1vs4",10
+"4","Identified","acc1vs5",10
+"5","Identified","acc2vs3",3
+"6","Identified","acc2vs4",10
+"7","Identified","acc2vs5",12
+"8","Identified","acc3vs4",18
+"9","Identified","acc4vs5",9
+"10","Unknown","acc1vs2",1
+"11","Unknown","acc1vs4",1
+"12","Unknown","acc3vs4",1
+"13","Unknown","acc4vs5",1
