@@ -1,0 +1,2354 @@
+---
+title: "plsda.rmd"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+#load required libraries
+library(rlang)
+library(tidyr)
+library("reshape")
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library("arsenal")
+library("Rmisc")
+library(gridExtra)
+library(ggpubr)
+library(factoextra)
+library(ggplot2)
+library(RColorBrewer)
+library(lme4)
+library(lmerTest)
+library(car)
+library(effects)
+library(ggfortify)
+library(cowplot)
+library(vegan)
+library(corrr)
+library(ggcorrplot)
+library(GGally)
+library(broom)
+library(cowplot)
+library(RVAideMemoire)
+library(arsenal)
+library(patchwork)
+library(tidyr)
+library(ggrepel)
+library(randomForest)
+library("janitor")
+library(varImp)
+library(mdatools)
+```
+
+```{r}
+#install latest version of mixOmics using Bioconducter 
+library("BiocManager")
+#BiocManager::install('mixOmics')
+library("mixOmics")
+```
+
+#Prepare data
+
+```{r}
+#read in all_long2
+all_long2 <- read.csv("all_long2.csv", check.names = FALSE)
+
+#check variable types
+summary(all_long2)
+```
+
+```{r}
+#convert necessary variables to factor
+all_long2$ATTRIBUTE_acclimation <- as.factor(all_long2$ATTRIBUTE_acclimation)
+all_long2$ATTRIBUTE_genotype <- as.factor(all_long2$ATTRIBUTE_genotype)
+all_long2$id <- as.factor(all_long2$id)
+all_long2$X.featureID <- as.factor(all_long2$X.featureID)
+all_long2$csi_smiles <- as.factor(all_long2$csi_smiles)
+all_long2$ms2_smiles <- as.factor(all_long2$ms2_smiles)
+all_long2$ms2_library_match <- as.factor(all_long2$ms2_library_match)
+all_long2$parent_mass <- as.factor(all_long2$parent_mass)
+all_long2$retention_time <- as.factor(all_long2$retention_time)
+all_long2$table_number <- as.factor(all_long2$table_number)
+all_long2$smiles <- as.factor(all_long2$smiles)
+all_long2$structure_source <- as.factor(all_long2$structure_source)
+all_long2$kingdom <- as.factor(all_long2$kingdom)
+all_long2$superclass <- as.factor(all_long2$superclass)
+all_long2$class <- as.factor(all_long2$class)
+all_long2$subclass <- as.factor(all_long2$subclass)
+all_long2$direct_parent <- as.factor(all_long2$direct_parent)
+all_long2$ATTRIBUTE_sampleID <- as.factor(all_long2$ATTRIBUTE_sampleID)
+```
+
+```{r}
+#use mdatools to convert all_long2 to matrix
+all_long2_mat = mda.df2mat(all_long2, full = TRUE)
+```
+
+```{r}
+#exclude unneeded columns: unknown taxonomic columns
+all_long2_mat <- mda.exclcols(all_long2_mat, 1299:1507)
+```
+
+```{r}
+#exclude unneeded columns: individual coral IDs
+#earlier columns last so the counts are still correct 
+all_long2_mat <- mda.exclcols(all_long2_mat, 4:1179)
+```
+
+
+
+#Partial least squares regression 
+
+#From Arianna (modified from Kevin)
+
+#use all_agg dataframe (generated in data_help.Rmd) using ACCLIMATION TREATMENT 
+
+```{r load data}
+agg_all <- read.csv("agg_all.csv", check.names = FALSE)
+agg_parent_norm_all <- read.csv("agg_parent_norm_all.csv", check.names = FALSE)
+agg_parent_norm_known <- read.csv("agg_parent_norm_known.csv", check.names = FALSE)
+```
+
+```{r}
+#select treatment names
+Y <- agg_all$ATTRIBUTE_acclimation
+```
+
+```{r}
+#select only data columns
+X <- agg_all[5:348]
+```
+
+```{r}
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)  
+```
+
+```{r}
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="PLS-DA")
+```
+
+#use all_agg dataframe (generated in data_help.Rmd) using GENOTYPE
+
+```{r}
+#select treatment names
+Y <- agg_all$ATTRIBUTE_genotype
+```
+
+```{r}
+#select only data columns
+X <- agg_all[5:348]
+```
+
+```{r}
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)  
+```
+
+```{r}
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="PLS-DA")
+```
+
+
+#use agg_parent_norm_all dataframe (generated in data_help.Rmd) using ACCLIMATION TREATMENT
+
+```{r}
+#select treatment names
+Y <- agg_parent_norm_all$ATTRIBUTE_acclimation
+```
+
+```{r}
+#select only data columns
+X <- agg_parent_norm_all[5:58]
+```
+
+```{r}
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)  
+```
+
+```{r}
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="PLS-DA")
+```
+
+#use agg_parent_norm_all dataframe (generated in data_help.Rmd) using GENOTYPE
+
+```{r}
+#select treatment names
+Y <- agg_parent_norm_all$ATTRIBUTE_genotype
+```
+
+```{r}
+#select only data columns
+X <- agg_parent_norm_all[5:58]
+```
+
+```{r}
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)  
+```
+
+```{r}
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="PLS-DA")
+```
+
+#use only top direct parents, agg_parent_known3 (generated in vip.Rmd) using ACCLIMATION TREATMENT
+
+```{r}
+#select treatment names
+Y <- agg_parent_top3$attribute_acclimation
+```
+
+```{r}
+#select only data columns
+X <- agg_parent_top3[5:7]
+```
+
+```{r}
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)  
+```
+
+```{r}
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="PLS-DA")
+```
+
+#use only top direct parents, agg_parent_known3 (generated in vip.Rmd) using GENOTYPE
+
+```{r}
+#select treatment names
+Y <- agg_parent_top3$attribute_genotype
+```
+
+```{r}
+#select only data columns
+X <- agg_parent_top3[5:7]
+```
+
+```{r}
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)  
+```
+
+```{r}
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="PLS-DA")
+```
+
+
+#Methods stolen from Kevin
+
+```{r variables as factors}
+#make sure that all proper columns are being read as factors 
+agg_parent_norm_all$ATTRIBUTE_acclimation <- as.factor(agg_parent_norm_all$ATTRIBUTE_acclimation)
+
+agg_parent_norm_all$ATTRIBUTE_genotype <- as.factor(agg_parent_norm_all$ATTRIBUTE_genotype)
+
+agg_parent_norm_known$ATTRIBUTE_acclimation <- as.factor(agg_parent_norm_known$ATTRIBUTE_acclimation)
+
+agg_parent_norm_known$ATTRIBUTE_genotype <- as.factor(agg_parent_norm_known$ATTRIBUTE_genotype)
+```
+
+#subset datasets for analysis
+#every possible combination of 2 acclimation treatments
+```{r all pairwise acc}
+#aggregated by all direct parents: single groups
+parent_all_acc1 <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_acclimation == "1") %>%
+  na.omit()
+
+parent_all_acc2 <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_acclimation == "2") %>%
+  na.omit()
+
+parent_all_acc3 <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_acclimation == "3") %>%
+  na.omit()
+
+parent_all_acc4 <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_acclimation == "4") %>%
+  na.omit()
+
+parent_all_acc5 <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_acclimation == "5") %>%
+  na.omit()
+
+parent_all_acc1 <- droplevels(parent_all_acc1)
+parent_all_acc2 <- droplevels(parent_all_acc2)
+parent_all_acc3 <- droplevels(parent_all_acc3)
+parent_all_acc4 <- droplevels(parent_all_acc4)
+parent_all_acc5 <- droplevels(parent_all_acc5)
+
+#bind together in every possible combo 
+parent_all_acc1vs2 <- rbind(parent_all_acc1, parent_all_acc2)
+
+parent_all_acc1vs3 <- rbind(parent_all_acc1, parent_all_acc3)
+
+parent_all_acc1vs4 <- rbind(parent_all_acc1, parent_all_acc4)
+
+parent_all_acc1vs5 <- rbind(parent_all_acc1, parent_all_acc5)
+
+parent_all_acc2vs3 <- rbind(parent_all_acc2, parent_all_acc3)
+
+parent_all_acc2vs4 <- rbind(parent_all_acc2, parent_all_acc4)
+
+parent_all_acc2vs5 <- rbind(parent_all_acc2, parent_all_acc5)
+
+parent_all_acc3vs4 <- rbind(parent_all_acc3, parent_all_acc4)
+
+parent_all_acc3vs5 <- rbind(parent_all_acc3, parent_all_acc5)
+
+parent_all_acc4vs5 <- rbind(parent_all_acc4, parent_all_acc5)
+```
+
+```{r known pairwise acc}
+#aggregated by known direct parents: single groups
+parent_known_acc1 <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_acclimation == "1") %>%
+  na.omit()
+
+parent_known_acc2 <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_acclimation == "2") %>%
+  na.omit()
+
+parent_known_acc3 <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_acclimation == "3") %>%
+  na.omit()
+
+parent_known_acc4 <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_acclimation == "4") %>%
+  na.omit()
+
+parent_known_acc5 <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_acclimation == "5") %>%
+  na.omit()
+
+parent_known_acc1 <- droplevels(parent_known_acc1)
+parent_known_acc2 <- droplevels(parent_known_acc2)
+parent_known_acc3 <- droplevels(parent_known_acc3)
+parent_known_acc4 <- droplevels(parent_known_acc4)
+parent_known_acc5 <- droplevels(parent_known_acc5)
+
+#bind together in every possible combo 
+parent_known_acc1vs2 <- rbind(parent_known_acc1, parent_known_acc2)
+
+parent_known_acc1vs3 <- rbind(parent_known_acc1, parent_known_acc3)
+
+parent_known_acc1vs4 <- rbind(parent_known_acc1, parent_known_acc4)
+
+parent_known_acc1vs5 <- rbind(parent_known_acc1, parent_known_acc5)
+
+parent_known_acc2vs3 <- rbind(parent_known_acc2, parent_known_acc3)
+
+parent_known_acc2vs4 <- rbind(parent_known_acc2, parent_known_acc4)
+
+parent_known_acc2vs5 <- rbind(parent_known_acc2, parent_known_acc5)
+
+parent_known_acc3vs4 <- rbind(parent_known_acc3, parent_known_acc4)
+
+parent_known_acc3vs5 <- rbind(parent_known_acc3, parent_known_acc5)
+
+parent_known_acc4vs5 <- rbind(parent_known_acc4, parent_known_acc5)
+```
+
+#every possible combination of 2 genotypes
+```{r all pairwise gen}
+#aggregated by all direct parents: single groups
+parent_all_AZ <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "AZ") %>%
+  na.omit()
+parent_all_BY <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "BY") %>%
+  na.omit()
+parent_all_CX <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "CX") %>%
+  na.omit()
+parent_all_DW <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "DW") %>%
+  na.omit()
+parent_all_EV <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "EV") %>%
+  na.omit()
+parent_all_FU <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "FU") %>%
+  na.omit()
+parent_all_GT <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "GT") %>%
+  na.omit()
+parent_all_HS <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "HS") %>%
+  na.omit()
+parent_all_IR <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "IR") %>%
+  na.omit()
+parent_all_JQ <- agg_parent_norm_all %>%
+  filter(ATTRIBUTE_genotype == "JQ") %>%
+  na.omit()
+
+parent_all_AZvsBY <- rbind(parent_all_AZ, parent_all_BY)
+parent_all_AZvsCX <- rbind(parent_all_AZ, parent_all_CX)
+parent_all_AZvsDW <- rbind(parent_all_AZ, parent_all_DW)
+parent_all_AZvsEV <- rbind(parent_all_AZ, parent_all_EV)
+parent_all_AZvsFU <- rbind(parent_all_AZ, parent_all_FU)
+parent_all_AZvsGT <- rbind(parent_all_AZ, parent_all_GT)
+parent_all_AZvsHS <- rbind(parent_all_AZ, parent_all_HS)
+parent_all_AZvsIR <- rbind(parent_all_AZ, parent_all_IR)
+parent_all_AZvsJQ <- rbind(parent_all_AZ, parent_all_JQ)
+
+parent_all_BYvsCX <- rbind(parent_all_BY, parent_all_CX)
+parent_all_BYvsDW <- rbind(parent_all_BY, parent_all_DW)
+parent_all_BYvsEV <- rbind(parent_all_BY, parent_all_EV)
+parent_all_BYvsFU <- rbind(parent_all_BY, parent_all_FU)
+parent_all_BYvsGT <- rbind(parent_all_BY, parent_all_GT)
+parent_all_BYvsHS <- rbind(parent_all_BY, parent_all_HS)
+parent_all_BYvsIR <- rbind(parent_all_BY, parent_all_IR)
+parent_all_BYvsJQ <- rbind(parent_all_BY, parent_all_JQ)
+
+parent_all_CXvsDW <- rbind(parent_all_CX, parent_all_DW)
+parent_all_CXvsEV <- rbind(parent_all_CX, parent_all_EV)
+parent_all_CXvsFU <- rbind(parent_all_CX, parent_all_FU)
+parent_all_CXvsGT <- rbind(parent_all_CX, parent_all_GT)
+parent_all_CXvsHS <- rbind(parent_all_CX, parent_all_HS)
+parent_all_CXvsIR <- rbind(parent_all_CX, parent_all_IR)
+parent_all_CXvsJQ <- rbind(parent_all_CX, parent_all_JQ)
+
+parent_all_DWvsEV <- rbind(parent_all_DW, parent_all_EV)
+parent_all_DWvsFU <- rbind(parent_all_DW, parent_all_FU)
+parent_all_DWvsGT <- rbind(parent_all_DW, parent_all_GT)
+parent_all_DWvsHS <- rbind(parent_all_DW, parent_all_HS)
+parent_all_DWvsIR <- rbind(parent_all_DW, parent_all_IR)
+parent_all_DWvsJQ <- rbind(parent_all_DW, parent_all_JQ)
+
+parent_all_EVvsFU <- rbind(parent_all_EV, parent_all_FU)
+parent_all_EVvsGT <- rbind(parent_all_EV, parent_all_GT)
+parent_all_EVvsHS <- rbind(parent_all_EV, parent_all_HS)
+parent_all_EVvsIR <- rbind(parent_all_EV, parent_all_IR)
+parent_all_EVvsJQ <- rbind(parent_all_EV, parent_all_JQ)
+
+parent_all_FUvsGT <- rbind(parent_all_FU, parent_all_GT)
+parent_all_FUvsHS <- rbind(parent_all_FU, parent_all_HS)
+parent_all_FUvsIR <- rbind(parent_all_FU, parent_all_IR)
+parent_all_FUvsJQ <- rbind(parent_all_FU, parent_all_JQ)
+
+parent_all_GTvsHS <- rbind(parent_all_GT, parent_all_HS)
+parent_all_GTvsIR <- rbind(parent_all_GT, parent_all_IR)
+parent_all_GTvsJQ <- rbind(parent_all_GT, parent_all_JQ)
+
+parent_all_HSvsIR <- rbind(parent_all_HS, parent_all_IR)
+parent_all_HSvsJQ <- rbind(parent_all_HS, parent_all_JQ)
+
+parent_all_IRvsJQ <- rbind(parent_all_IR, parent_all_JQ)
+```
+
+```{r known pairwise gen}
+#aggregated by known direct parents: single groups
+parent_known_AZ <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "AZ") %>%
+  na.omit()
+parent_known_BY <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "BY") %>%
+  na.omit()
+parent_known_CX <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "CX") %>%
+  na.omit()
+parent_known_DW <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "DW") %>%
+  na.omit()
+parent_known_EV <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "EV") %>%
+  na.omit()
+parent_known_FU <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "FU") %>%
+  na.omit()
+parent_known_GT <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "GT") %>%
+  na.omit()
+parent_known_HS <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "HS") %>%
+  na.omit()
+parent_known_IR <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "IR") %>%
+  na.omit()
+parent_known_JQ <- agg_parent_norm_known %>%
+  filter(ATTRIBUTE_genotype == "JQ") %>%
+  na.omit()
+
+parent_known_AZvsBY <- rbind(parent_known_AZ, parent_known_BY)
+parent_known_AZvsCX <- rbind(parent_known_AZ, parent_known_CX)
+parent_known_AZvsDW <- rbind(parent_known_AZ, parent_known_DW)
+parent_known_AZvsEV <- rbind(parent_known_AZ, parent_known_EV)
+parent_known_AZvsFU <- rbind(parent_known_AZ, parent_known_FU)
+parent_known_AZvsGT <- rbind(parent_known_AZ, parent_known_GT)
+parent_known_AZvsHS <- rbind(parent_known_AZ, parent_known_HS)
+parent_known_AZvsIR <- rbind(parent_known_AZ, parent_known_IR)
+parent_known_AZvsJQ <- rbind(parent_known_AZ, parent_known_JQ)
+
+parent_known_BYvsCX <- rbind(parent_known_BY, parent_known_CX)
+parent_known_BYvsDW <- rbind(parent_known_BY, parent_known_DW)
+parent_known_BYvsEV <- rbind(parent_known_BY, parent_known_EV)
+parent_known_BYvsFU <- rbind(parent_known_BY, parent_known_FU)
+parent_known_BYvsGT <- rbind(parent_known_BY, parent_known_GT)
+parent_known_BYvsHS <- rbind(parent_known_BY, parent_known_HS)
+parent_known_BYvsIR <- rbind(parent_known_BY, parent_known_IR)
+parent_known_BYvsJQ <- rbind(parent_known_BY, parent_known_JQ)
+
+parent_known_CXvsDW <- rbind(parent_known_CX, parent_known_DW)
+parent_known_CXvsEV <- rbind(parent_known_CX, parent_known_EV)
+parent_known_CXvsFU <- rbind(parent_known_CX, parent_known_FU)
+parent_known_CXvsGT <- rbind(parent_known_CX, parent_known_GT)
+parent_known_CXvsHS <- rbind(parent_known_CX, parent_known_HS)
+parent_known_CXvsIR <- rbind(parent_known_CX, parent_known_IR)
+parent_known_CXvsJQ <- rbind(parent_known_CX, parent_known_JQ)
+
+parent_known_DWvsEV <- rbind(parent_known_DW, parent_known_EV)
+parent_known_DWvsFU <- rbind(parent_known_DW, parent_known_FU)
+parent_known_DWvsGT <- rbind(parent_known_DW, parent_known_GT)
+parent_known_DWvsHS <- rbind(parent_known_DW, parent_known_HS)
+parent_known_DWvsIR <- rbind(parent_known_DW, parent_known_IR)
+parent_known_DWvsJQ <- rbind(parent_known_DW, parent_known_JQ)
+
+parent_known_EVvsFU <- rbind(parent_known_EV, parent_known_FU)
+parent_known_EVvsGT <- rbind(parent_known_EV, parent_known_GT)
+parent_known_EVvsHS <- rbind(parent_known_EV, parent_known_HS)
+parent_known_EVvsIR <- rbind(parent_known_EV, parent_known_IR)
+parent_known_EVvsJQ <- rbind(parent_known_EV, parent_known_JQ)
+
+parent_known_FUvsGT <- rbind(parent_known_FU, parent_known_GT)
+parent_known_FUvsHS <- rbind(parent_known_FU, parent_known_HS)
+parent_known_FUvsIR <- rbind(parent_known_FU, parent_known_IR)
+parent_known_FUvsJQ <- rbind(parent_known_FU, parent_known_JQ)
+
+parent_known_GTvsHS <- rbind(parent_known_GT, parent_known_HS)
+parent_known_GTvsIR <- rbind(parent_known_GT, parent_known_IR)
+parent_known_GTvsJQ <- rbind(parent_known_GT, parent_known_JQ)
+
+parent_known_HSvsIR <- rbind(parent_known_HS, parent_known_IR)
+parent_known_HSvsJQ <- rbind(parent_known_HS, parent_known_JQ)
+
+parent_known_IRvsJQ <- rbind(parent_known_IR, parent_known_JQ)
+```
+
+
+#Creating the PLS-DA function
+
+``` {r plsdaFunction, echo=TRUE, warning=FALSE, message=FALSE}
+vip.plsda <- function(data,         # input datas et with only the two variables being compared 
+                      Y,            # column of the predictor variable
+                      path,         # path to output folder for graphs
+                      name          # name of the PLS-DA graphs
+                      ) { 
+col <- ncol(data)                   # Finding number of columns in data set                                 
+X <- data[5:col]                    # assigning metabolites as X data set
+Y <- as.factor(Y)                   # assigning groups as Y data set (predictor)
+MyResult.plsda <- mixOmics::plsda(X, Y)       # Running PLS-DA
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE) # Plotting PLS-DA
+pdf(file=paste0(path, name, "_plsda.pdf")) 
+dev.off()
+
+vip <- PLSDA.VIP(MyResult.plsda)                            # VIP Extraction from the PLS=DA
+vip.df <- as.data.frame(vip[["tab"]])                       # Creating a readable data frame
+vip.table <- tibble::rownames_to_column(vip.df, var = "DirectParent") # Creating a table format
+vip.table_1 <- vip.table %>%                                # Filtering metabolites with VIPs >= 1
+  filter(VIP >= 1)
+return(vip.table_1)
+}
+```
+#THIS WORKS AS OF 7/4/22
+
+
+### PLD-DA and VIP Extraction
+
+``` {r PLSDA all acc, echo=TRUE, warning=FALSE, message=FALSE}
+path <- "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/PLSDA_figs/"
+
+#all direct parents by acclimation
+parent_all_acc1vs2_VIP_1 <- vip.plsda(parent_all_acc1vs2, parent_all_acc1vs2$ATTRIBUTE_acclimation, path, "parent_all_acc1vs2")
+
+parent_all_acc1vs3_VIP_1 <- vip.plsda(parent_all_acc1vs3, parent_all_acc1vs3$ATTRIBUTE_acclimation, path, "parent_all_acc1vs3")
+
+parent_all_acc1vs4_VIP_1 <- vip.plsda(parent_all_acc1vs4, parent_all_acc1vs4$ATTRIBUTE_acclimation, path, "parent_all_acc1vs4")
+
+parent_all_acc1vs5_VIP_1 <- vip.plsda(parent_all_acc1vs5, parent_all_acc1vs5$ATTRIBUTE_acclimation, path, "parent_all_acc1vs5")
+
+parent_all_acc2vs3_VIP_1 <- vip.plsda(parent_all_acc2vs3, parent_all_acc2vs3$ATTRIBUTE_acclimation, path, "parent_all_acc2vs3")
+
+parent_all_acc2vs4_VIP_1 <- vip.plsda(parent_all_acc2vs4, parent_all_acc2vs4$ATTRIBUTE_acclimation, path, "parent_all_acc2vs4")
+
+parent_all_acc2vs5_VIP_1 <- vip.plsda(parent_all_acc2vs5, parent_all_acc2vs5$ATTRIBUTE_acclimation, path, "parent_all_acc2vs5")
+
+parent_all_acc3vs4_VIP_1 <- vip.plsda(parent_all_acc3vs4, parent_all_acc3vs4$ATTRIBUTE_acclimation, path, "parent_all_acc3vs4")
+
+parent_all_acc3vs5_VIP_1 <- vip.plsda(parent_all_acc3vs5, parent_all_acc3vs5$ATTRIBUTE_acclimation, path, "parent_all_acc3vs5")
+
+parent_all_acc4vs5_VIP_1 <- vip.plsda(parent_all_acc4vs5, parent_all_acc4vs5$ATTRIBUTE_acclimation, path, "parent_all_acc4vs5")
+```
+
+``` {r PLSDA known acc, echo=TRUE, warning=FALSE, message=FALSE}
+path <- "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/PLSDA_figs/"
+
+#known direct parents by acclimation 
+parent_known_acc1vs2_VIP_1 <- vip.plsda(parent_known_acc1vs2, parent_known_acc1vs2$ATTRIBUTE_acclimation, path, "parent_known_acc1vs2")
+
+parent_known_acc1vs3_VIP_1 <- vip.plsda(parent_known_acc1vs3, parent_known_acc1vs3$ATTRIBUTE_acclimation, path, "parent_known_acc1vs3")
+
+parent_known_acc1vs4_VIP_1 <- vip.plsda(parent_known_acc1vs4, parent_known_acc1vs4$ATTRIBUTE_acclimation, path, "parent_known_acc1vs4")
+
+parent_known_acc1vs5_VIP_1 <- vip.plsda(parent_known_acc1vs5, parent_known_acc1vs5$ATTRIBUTE_acclimation, path, "parent_known_acc1vs5")
+
+parent_known_acc2vs3_VIP_1 <- vip.plsda(parent_known_acc2vs3, parent_known_acc2vs3$ATTRIBUTE_acclimation, path, "parent_known_acc2vs3")
+
+parent_known_acc2vs4_VIP_1 <- vip.plsda(parent_known_acc2vs4, parent_known_acc2vs4$ATTRIBUTE_acclimation, path, "parent_known_acc2vs4")
+
+parent_known_acc2vs5_VIP_1 <- vip.plsda(parent_known_acc2vs5, parent_known_acc2vs5$ATTRIBUTE_acclimation, path, "parent_known_acc2vs5")
+
+parent_known_acc3vs4_VIP_1 <- vip.plsda(parent_known_acc3vs4, parent_known_acc3vs4$ATTRIBUTE_acclimation, path, "parent_known_acc3vs4")
+
+parent_known_acc3vs5_VIP_1 <- vip.plsda(parent_known_acc3vs5, parent_known_acc3vs5$ATTRIBUTE_acclimation, path, "parent_known_acc3vs5")
+
+parent_known_acc4vs5_VIP_1 <- vip.plsda(parent_known_acc4vs5, parent_known_acc4vs5$ATTRIBUTE_acclimation, path, "parent_known_acc4vs5")
+```
+
+``` {r PLSDA all gen, echo=TRUE, warning=FALSE, message=FALSE}
+path <- "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/PLSDA_figs/"
+
+#all direct parents by genotype
+parent_all_AZvsBY_VIP_1 <- vip.plsda(parent_all_AZvsBY, parent_all_AZvsBY$ATTRIBUTE_genotype, path, "parent_all_AZvsBY")
+
+parent_all_AZvsCX_VIP_1 <- vip.plsda(parent_all_AZvsCX, parent_all_AZvsCX$ATTRIBUTE_genotype, path, "parent_all_AZvsCX")
+
+parent_all_AZvsDW_VIP_1 <- vip.plsda(parent_all_AZvsDW, parent_all_AZvsDW$ATTRIBUTE_genotype, path, "parent_all_AZvsDW")
+
+parent_all_AZvsEV_VIP_1 <- vip.plsda(parent_all_AZvsEV, parent_all_AZvsEV$ATTRIBUTE_genotype, path, "parent_all_AZvsEV")
+
+parent_all_AZvsFU_VIP_1 <- vip.plsda(parent_all_AZvsFU, parent_all_AZvsFU$ATTRIBUTE_genotype, path, "parent_all_AZvsFU")
+
+parent_all_AZvsGT_VIP_1 <- vip.plsda(parent_all_AZvsGT, parent_all_AZvsGT$ATTRIBUTE_genotype, path, "parent_all_AZvsGT")
+
+parent_all_AZvsHS_VIP_1 <- vip.plsda(parent_all_AZvsHS, parent_all_AZvsHS$ATTRIBUTE_genotype, path, "parent_all_AZvsHS")
+
+parent_all_AZvsIR_VIP_1 <- vip.plsda(parent_all_AZvsIR, parent_all_AZvsIR$ATTRIBUTE_genotype, path, "parent_all_AZvsIR")
+
+parent_all_AZvsJQ_VIP_1 <- vip.plsda(parent_all_AZvsJQ, parent_all_AZvsJQ$ATTRIBUTE_genotype, path, "parent_all_AZvsJQ")
+
+
+parent_all_BYvsCX_VIP_1 <- vip.plsda(parent_all_BYvsCX, parent_all_BYvsCX$ATTRIBUTE_genotype, path, "parent_all_BYvsCX")
+
+parent_all_BYvsDW_VIP_1 <- vip.plsda(parent_all_BYvsDW, parent_all_BYvsDW$ATTRIBUTE_genotype, path, "parent_all_BYvsDW")
+
+parent_all_BYvsEV_VIP_1 <- vip.plsda(parent_all_BYvsEV, parent_all_BYvsEV$ATTRIBUTE_genotype, path, "parent_all_BYvsEV")
+
+parent_all_BYvsFU_VIP_1 <- vip.plsda(parent_all_BYvsFU, parent_all_BYvsFU$ATTRIBUTE_genotype, path, "parent_all_BYvsFU")
+
+parent_all_BYvsGT_VIP_1 <- vip.plsda(parent_all_BYvsGT, parent_all_BYvsGT$ATTRIBUTE_genotype, path, "parent_all_BYvsGT")
+
+parent_all_BYvsHS_VIP_1 <- vip.plsda(parent_all_BYvsHS, parent_all_BYvsHS$ATTRIBUTE_genotype, path, "parent_all_BYvsHS")
+
+parent_all_BYvsIR_VIP_1 <- vip.plsda(parent_all_BYvsIR, parent_all_BYvsIR$ATTRIBUTE_genotype, path, "parent_all_BYvsIR")
+
+parent_all_BYvsJQ_VIP_1 <- vip.plsda(parent_all_BYvsJQ, parent_all_BYvsJQ$ATTRIBUTE_genotype, path, "parent_all_BYvsJQ")
+
+
+parent_all_CXvsDW_VIP_1 <- vip.plsda(parent_all_CXvsDW, parent_all_CXvsDW$ATTRIBUTE_genotype, path, "parent_all_CXvsDW")
+
+parent_all_CXvsEV_VIP_1 <- vip.plsda(parent_all_CXvsEV, parent_all_CXvsEV$ATTRIBUTE_genotype, path, "parent_all_CXvsEV")
+
+parent_all_CXvsFU_VIP_1 <- vip.plsda(parent_all_CXvsFU, parent_all_CXvsFU$ATTRIBUTE_genotype, path, "parent_all_CXvsFU")
+
+parent_all_CXvsGT_VIP_1 <- vip.plsda(parent_all_CXvsGT, parent_all_CXvsGT$ATTRIBUTE_genotype, path, "parent_all_CXvsGT")
+
+parent_all_CXvsHS_VIP_1 <- vip.plsda(parent_all_CXvsHS, parent_all_CXvsHS$ATTRIBUTE_genotype, path, "parent_all_CXvsHS")
+
+parent_all_CXvsIR_VIP_1 <- vip.plsda(parent_all_CXvsIR, parent_all_CXvsIR$ATTRIBUTE_genotype, path, "parent_all_CXvsIR")
+
+parent_all_CXvsJQ_VIP_1 <- vip.plsda(parent_all_CXvsJQ, parent_all_CXvsJQ$ATTRIBUTE_genotype, path, "parent_all_CXvsJQ")
+
+
+parent_all_DWvsEV_VIP_1 <- vip.plsda(parent_all_DWvsEV, parent_all_DWvsEV$ATTRIBUTE_genotype, path, "parent_all_DWvsEV")
+
+parent_all_DWvsFU_VIP_1 <- vip.plsda(parent_all_DWvsFU, parent_all_DWvsFU$ATTRIBUTE_genotype, path, "parent_all_DWvsFU")
+
+parent_all_DWvsGT_VIP_1 <- vip.plsda(parent_all_DWvsGT, parent_all_DWvsGT$ATTRIBUTE_genotype, path, "parent_all_DWvsGT")
+
+parent_all_DWvsHS_VIP_1 <- vip.plsda(parent_all_DWvsHS, parent_all_DWvsHS$ATTRIBUTE_genotype, path, "parent_all_DWvsHS")
+
+parent_all_DWvsIR_VIP_1 <- vip.plsda(parent_all_DWvsIR, parent_all_DWvsIR$ATTRIBUTE_genotype, path, "parent_all_DWvsIR")
+
+parent_all_DWvsJQ_VIP_1 <- vip.plsda(parent_all_DWvsJQ, parent_all_DWvsJQ$ATTRIBUTE_genotype, path, "parent_all_DWvsJQ")
+
+
+parent_all_EVvsFU_VIP_1 <- vip.plsda(parent_all_EVvsFU, parent_all_EVvsFU$ATTRIBUTE_genotype, path, "parent_all_EVvsFU")
+
+parent_all_EVvsGT_VIP_1 <- vip.plsda(parent_all_EVvsGT, parent_all_EVvsGT$ATTRIBUTE_genotype, path, "parent_all_EVvsGT")
+
+parent_all_EVvsHS_VIP_1 <- vip.plsda(parent_all_EVvsHS, parent_all_EVvsHS$ATTRIBUTE_genotype, path, "parent_all_EVvsHS")
+
+parent_all_EVvsIR_VIP_1 <- vip.plsda(parent_all_EVvsIR, parent_all_EVvsIR$ATTRIBUTE_genotype, path, "parent_all_EVvsIR")
+
+parent_all_EVvsJQ_VIP_1 <- vip.plsda(parent_all_EVvsJQ, parent_all_EVvsJQ$ATTRIBUTE_genotype, path, "parent_all_EVvsJQ")
+
+
+parent_all_FUvsGT_VIP_1 <- vip.plsda(parent_all_FUvsGT, parent_all_FUvsGT$ATTRIBUTE_genotype, path, "parent_all_FUvsGT")
+
+parent_all_FUvsHS_VIP_1 <- vip.plsda(parent_all_FUvsHS, parent_all_FUvsHS$ATTRIBUTE_genotype, path, "parent_all_FUvsHS")
+
+parent_all_FUvsIR_VIP_1 <- vip.plsda(parent_all_FUvsIR, parent_all_FUvsIR$ATTRIBUTE_genotype, path, "parent_all_FUvsIR")
+
+parent_all_FUvsJQ_VIP_1 <- vip.plsda(parent_all_FUvsJQ, parent_all_FUvsJQ$ATTRIBUTE_genotype, path, "parent_all_FUvsJQ")
+
+
+parent_all_GTvsHS_VIP_1 <- vip.plsda(parent_all_GTvsHS, parent_all_GTvsHS$ATTRIBUTE_genotype, path, "parent_all_GTvsHS")
+
+parent_all_GTvsIR_VIP_1 <- vip.plsda(parent_all_GTvsIR, parent_all_GTvsIR$ATTRIBUTE_genotype, path, "parent_all_GTvsIR")
+
+parent_all_GTvsJQ_VIP_1 <- vip.plsda(parent_all_GTvsJQ, parent_all_GTvsJQ$ATTRIBUTE_genotype, path, "parent_all_GTvsJQ")
+
+
+parent_all_HSvsIR_VIP_1 <- vip.plsda(parent_all_HSvsIR, parent_all_HSvsIR$ATTRIBUTE_genotype, path, "parent_all_HSvsIR")
+
+parent_all_HSvsJQ_VIP_1 <- vip.plsda(parent_all_HSvsJQ, parent_all_HSvsJQ$ATTRIBUTE_genotype, path, "parent_all_HSvsJQ")
+
+
+parent_all_IRvsJQ_VIP_1 <- vip.plsda(parent_all_IRvsJQ, parent_all_IRvsJQ$ATTRIBUTE_genotype, path, "parent_all_IRvsJQ")
+```
+
+``` {r PLSDA known gen, echo=TRUE, warning=FALSE, message=FALSE}
+path <- "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/PLSDA_figs/"
+
+#known direct parents by genotype
+parent_known_AZvsBY_VIP_1 <- vip.plsda(parent_known_AZvsBY, parent_known_AZvsBY$ATTRIBUTE_genotype, path, "parent_known_AZvsBY")
+
+parent_known_AZvsCX_VIP_1 <- vip.plsda(parent_known_AZvsCX, parent_known_AZvsCX$ATTRIBUTE_genotype, path, "parent_known_AZvsCX")
+
+parent_known_AZvsDW_VIP_1 <- vip.plsda(parent_known_AZvsDW, parent_known_AZvsDW$ATTRIBUTE_genotype, path, "parent_known_AZvsDW")
+
+parent_known_AZvsEV_VIP_1 <- vip.plsda(parent_known_AZvsEV, parent_known_AZvsEV$ATTRIBUTE_genotype, path, "parent_known_AZvsEV")
+
+parent_known_AZvsFU_VIP_1 <- vip.plsda(parent_known_AZvsFU, parent_known_AZvsFU$ATTRIBUTE_genotype, path, "parent_known_AZvsFU")
+
+parent_known_AZvsGT_VIP_1 <- vip.plsda(parent_known_AZvsGT, parent_known_AZvsGT$ATTRIBUTE_genotype, path, "parent_known_AZvsGT")
+
+parent_known_AZvsHS_VIP_1 <- vip.plsda(parent_known_AZvsHS, parent_known_AZvsHS$ATTRIBUTE_genotype, path, "parent_known_AZvsHS")
+
+parent_known_AZvsIR_VIP_1 <- vip.plsda(parent_known_AZvsIR, parent_known_AZvsIR$ATTRIBUTE_genotype, path, "parent_known_AZvsIR")
+
+parent_known_AZvsJQ_VIP_1 <- vip.plsda(parent_known_AZvsJQ, parent_known_AZvsJQ$ATTRIBUTE_genotype, path, "parent_known_AZvsJQ")
+
+
+parent_known_BYvsCX_VIP_1 <- vip.plsda(parent_known_BYvsCX, parent_known_BYvsCX$ATTRIBUTE_genotype, path, "parent_known_BYvsCX")
+
+parent_known_BYvsDW_VIP_1 <- vip.plsda(parent_known_BYvsDW, parent_known_BYvsDW$ATTRIBUTE_genotype, path, "parent_known_BYvsDW")
+
+parent_known_BYvsEV_VIP_1 <- vip.plsda(parent_known_BYvsEV, parent_known_BYvsEV$ATTRIBUTE_genotype, path, "parent_known_BYvsEV")
+
+parent_known_BYvsFU_VIP_1 <- vip.plsda(parent_known_BYvsFU, parent_known_BYvsFU$ATTRIBUTE_genotype, path, "parent_known_BYvsFU")
+
+parent_known_BYvsGT_VIP_1 <- vip.plsda(parent_known_BYvsGT, parent_known_BYvsGT$ATTRIBUTE_genotype, path, "parent_known_BYvsGT")
+
+parent_known_BYvsHS_VIP_1 <- vip.plsda(parent_known_BYvsHS, parent_known_BYvsHS$ATTRIBUTE_genotype, path, "parent_known_BYvsHS")
+
+parent_known_BYvsIR_VIP_1 <- vip.plsda(parent_known_BYvsIR, parent_known_BYvsIR$ATTRIBUTE_genotype, path, "parent_known_BYvsIR")
+
+parent_known_BYvsJQ_VIP_1 <- vip.plsda(parent_known_BYvsJQ, parent_known_BYvsJQ$ATTRIBUTE_genotype, path, "parent_known_BYvsJQ")
+
+
+parent_known_CXvsDW_VIP_1 <- vip.plsda(parent_known_CXvsDW, parent_known_CXvsDW$ATTRIBUTE_genotype, path, "parent_known_CXvsDW")
+
+parent_known_CXvsEV_VIP_1 <- vip.plsda(parent_known_CXvsEV, parent_known_CXvsEV$ATTRIBUTE_genotype, path, "parent_known_CXvsEV")
+
+parent_known_CXvsFU_VIP_1 <- vip.plsda(parent_known_CXvsFU, parent_known_CXvsFU$ATTRIBUTE_genotype, path, "parent_known_CXvsFU")
+
+parent_known_CXvsGT_VIP_1 <- vip.plsda(parent_known_CXvsGT, parent_known_CXvsGT$ATTRIBUTE_genotype, path, "parent_known_CXvsGT")
+
+parent_known_CXvsHS_VIP_1 <- vip.plsda(parent_known_CXvsHS, parent_known_CXvsHS$ATTRIBUTE_genotype, path, "parent_known_CXvsHS")
+
+parent_known_CXvsIR_VIP_1 <- vip.plsda(parent_known_CXvsIR, parent_known_CXvsIR$ATTRIBUTE_genotype, path, "parent_known_CXvsIR")
+
+parent_known_CXvsJQ_VIP_1 <- vip.plsda(parent_known_CXvsJQ, parent_known_CXvsJQ$ATTRIBUTE_genotype, path, "parent_known_CXvsJQ")
+
+
+parent_known_DWvsEV_VIP_1 <- vip.plsda(parent_known_DWvsEV, parent_known_DWvsEV$ATTRIBUTE_genotype, path, "parent_known_DWvsEV")
+
+parent_known_DWvsFU_VIP_1 <- vip.plsda(parent_known_DWvsFU, parent_known_DWvsFU$ATTRIBUTE_genotype, path, "parent_known_DWvsFU")
+
+parent_known_DWvsGT_VIP_1 <- vip.plsda(parent_known_DWvsGT, parent_known_DWvsGT$ATTRIBUTE_genotype, path, "parent_known_DWvsGT")
+
+parent_known_DWvsHS_VIP_1 <- vip.plsda(parent_known_DWvsHS, parent_known_DWvsHS$ATTRIBUTE_genotype, path, "parent_known_DWvsHS")
+
+parent_known_DWvsIR_VIP_1 <- vip.plsda(parent_known_DWvsIR, parent_known_DWvsIR$ATTRIBUTE_genotype, path, "parent_known_DWvsIR")
+
+parent_known_DWvsJQ_VIP_1 <- vip.plsda(parent_known_DWvsJQ, parent_known_DWvsJQ$ATTRIBUTE_genotype, path, "parent_known_DWvsJQ")
+
+
+parent_known_EVvsFU_VIP_1 <- vip.plsda(parent_known_EVvsFU, parent_known_EVvsFU$ATTRIBUTE_genotype, path, "parent_known_EVvsFU")
+
+parent_known_EVvsGT_VIP_1 <- vip.plsda(parent_known_EVvsGT, parent_known_EVvsGT$ATTRIBUTE_genotype, path, "parent_known_EVvsGT")
+
+parent_known_EVvsHS_VIP_1 <- vip.plsda(parent_known_EVvsHS, parent_known_EVvsHS$ATTRIBUTE_genotype, path, "parent_known_EVvsHS")
+
+parent_known_EVvsIR_VIP_1 <- vip.plsda(parent_known_EVvsIR, parent_known_EVvsIR$ATTRIBUTE_genotype, path, "parent_known_EVvsIR")
+
+parent_known_EVvsJQ_VIP_1 <- vip.plsda(parent_known_EVvsJQ, parent_known_EVvsJQ$ATTRIBUTE_genotype, path, "parent_known_EVvsJQ")
+
+
+parent_known_FUvsGT_VIP_1 <- vip.plsda(parent_known_FUvsGT, parent_known_FUvsGT$ATTRIBUTE_genotype, path, "parent_known_FUvsGT")
+
+parent_known_FUvsHS_VIP_1 <- vip.plsda(parent_known_FUvsHS, parent_known_FUvsHS$ATTRIBUTE_genotype, path, "parent_known_FUvsHS")
+
+parent_known_FUvsIR_VIP_1 <- vip.plsda(parent_known_FUvsIR, parent_known_FUvsIR$ATTRIBUTE_genotype, path, "parent_known_FUvsIR")
+
+parent_known_FUvsJQ_VIP_1 <- vip.plsda(parent_known_FUvsJQ, parent_known_FUvsJQ$ATTRIBUTE_genotype, path, "parent_known_FUvsJQ")
+
+
+parent_known_GTvsHS_VIP_1 <- vip.plsda(parent_known_GTvsHS, parent_known_GTvsHS$ATTRIBUTE_genotype, path, "parent_known_GTvsHS")
+
+parent_known_GTvsIR_VIP_1 <- vip.plsda(parent_known_GTvsIR, parent_known_GTvsIR$ATTRIBUTE_genotype, path, "parent_known_GTvsIR")
+
+parent_known_GTvsJQ_VIP_1 <- vip.plsda(parent_known_GTvsJQ, parent_known_GTvsJQ$ATTRIBUTE_genotype, path, "parent_known_GTvsJQ")
+
+
+parent_known_HSvsIR_VIP_1 <- vip.plsda(parent_known_HSvsIR, parent_known_HSvsIR$ATTRIBUTE_genotype, path, "parent_known_HSvsIR")
+
+parent_known_HSvsJQ_VIP_1 <- vip.plsda(parent_known_HSvsJQ, parent_known_HSvsJQ$ATTRIBUTE_genotype, path, "parent_known_HSvsJQ")
+
+
+parent_known_IRvsJQ_VIP_1 <- vip.plsda(parent_known_IRvsJQ, parent_known_IRvsJQ$ATTRIBUTE_genotype, path, "parent_known_IRvsJQ")
+```
+
+
+### Creating a t-test and FDR correction function
+### Two tests: one for acclimation treatments, one for genotypes 
+#not working because data subsets are still reading too many factor levels
+```{r testFunction acc, echo=TRUE, warning=FALSE, message=FALSE}
+
+vip.ttest <- function(data, 
+                      VIP_data,
+                      est1,
+                      est2
+                      ) { 
+## Gather data frame and group by metabolite 
+data <- droplevels(data)
+data_gather <- data %>% gather(key = "DirectParent", value = "Count", -ATTRIBUTE_sampleID, -ATTRIBUTE_genotype, -ATTRIBUTE_acclimation, -ATTRIBUTE_dryweight) %>% dplyr::select("ATTRIBUTE_acclimation", "DirectParent", "Count")
+
+data_gather$ATTRIBUTE_acclimation <- as.factor(data_gather$ATTRIBUTE_acclimation)
+
+data_gather$ATTRIBUTE_acclimation <- droplevels(data_gather$ATTRIBUTE_acclimation)
+
+data_gather <- dplyr::group_by(data_gather, DirectParent)
+data_gather$ATTRIBUTE_acclimation <- droplevels(data_gather$ATTRIBUTE_acclimation)
+
+# Select metabolites only present from the PLS-DA with VIPs >1
+VIP_Select <- subset(data_gather, data_gather$DirectParent %in% VIP_data$DirectParent)
+
+VIP_Select$ATTRIBUTE_acclimation <- droplevels(VIP_Select$ATTRIBUTE_acclimation)
+
+#Looped t-test for all metabolites with VIPs >1, estimate 1 = Bleached_Hot, estimate 2 = Control
+t.test <-do(VIP_Select, tidy(t.test(.$Count ~ .$ATTRIBUTE_acclimation,
+                 alternative = "two.sided",
+                 mu = 0,
+                 paired = FALSE,
+                 var.equal = FALSE,
+                 conf.level = 0.95
+                 )))
+
+#adjust p value for the number of comparisons
+t.test$p.adj<-p.adjust(t.test$p.value, method=c("fdr"), n=length(VIP_data$DirectParent)) #length = number of metabolites tested, false discovery rate method
+
+# Filter for significantly different metabolites (p < 0.05)
+t.test.fdr <- t.test %>% filter(p.adj <= 0.05)
+
+# Filter for metabolites accumulated for est1
+t.test.sig.up <- t.test.fdr %>% filter(estimate1 > estimate2)
+t.test.sig.up$Enrichment.dir <- est1
+
+# Filter for metabolites accumulated for est2
+t.test.sig.down <- t.test.fdr %>% filter(estimate1 < estimate2)
+t.test.sig.down$Enrichment.dir <- est2
+
+#Combining data sets
+t.test.sig.final <- rbind(t.test.sig.up, t.test.sig.down)
+return(t.test.sig.final)
+}
+```
+#THIS WORKS AS OF 7/5/22: ERROR WAS BECAUSE OF A SPACE IN A COLUMN NAME IN THE PREVIOUS SCRIPT
+
+```{r testFunction gen, echo=TRUE, warning=FALSE, message=FALSE}
+
+vip.ttest2 <- function(data, 
+                      VIP_data,
+                      est1,
+                      est2
+                      ) { 
+## Gather data frame and group by metabolite 
+data <- droplevels(data)
+data_gather <- data %>% gather(key = "DirectParent", value = "Count", -ATTRIBUTE_sampleID, -ATTRIBUTE_genotype, -ATTRIBUTE_acclimation, -ATTRIBUTE_dryweight) %>% dplyr::select("ATTRIBUTE_genotype", "DirectParent", "Count")
+
+data_gather$ATTRIBUTE_genotype <- as.factor(data_gather$ATTRIBUTE_genotype)
+
+data_gather$ATTRIBUTE_genotype <- droplevels(data_gather$ATTRIBUTE_genotype)
+
+data_gather <- dplyr::group_by(data_gather, DirectParent)
+data_gather$ATTRIBUTE_genotype <- droplevels(data_gather$ATTRIBUTE_genotype)
+
+# Select metabolites only present from the PLS-DA with VIPs >1
+VIP_Select <- subset(data_gather, data_gather$DirectParent %in% VIP_data$DirectParent)
+
+VIP_Select$ATTRIBUTE_genotype <- droplevels(VIP_Select$ATTRIBUTE_genotype)
+
+#Looped t-test for all metabolites with VIPs >1, estimate 1 = Bleached_Hot, estimate 2 = Control
+t.test <-do(VIP_Select, tidy(t.test(.$Count ~ .$ATTRIBUTE_genotype,
+                 alternative = "two.sided",
+                 mu = 0,
+                 paired = FALSE,
+                 var.equal = FALSE,
+                 conf.level = 0.95
+                 )))
+
+#adjust p value for the number of comparisons
+t.test$p.adj<-p.adjust(t.test$p.value, method=c("fdr"), n=length(VIP_data$DirectParent)) #length = number of metabolites tested, false discovery rate method
+
+# Filter for significantly different metabolites (p < 0.05)
+t.test.fdr <- t.test %>% filter(p.adj <= 0.05)
+
+# Filter for metabolites accumulated for est1
+t.test.sig.up <- t.test.fdr %>% filter(estimate1 > estimate2)
+t.test.sig.up$Enrichment.dir <- est1
+
+# Filter for metabolites accumulated for est2
+t.test.sig.down <- t.test.fdr %>% filter(estimate1 < estimate2)
+t.test.sig.down$Enrichment.dir <- est2
+
+#Combining data sets
+t.test.sig.final <- rbind(t.test.sig.up, t.test.sig.down)
+return(t.test.sig.final)
+}
+```
+
+
+# T-test and FDR correction of metabolites with VIPs >1
+
+``` {r ttest all acc, echo=TRUE}
+#all compounds by acclimation treatment
+
+parent_all_acc1vs2_VIP_sig <- vip.ttest(parent_all_acc1vs2, parent_all_acc1vs2_VIP_1, "Acclimation 1", "Acclimation 2")
+
+parent_all_acc1vs3_VIP_sig <- vip.ttest(parent_all_acc1vs3, parent_all_acc1vs3_VIP_1, "Acclimation 1", "Acclimation 3")
+
+parent_all_acc1vs4_VIP_sig <- vip.ttest(parent_all_acc1vs4, parent_all_acc1vs4_VIP_1, "Acclimation 1", "Acclimation 4")
+
+parent_all_acc1vs5_VIP_sig <- vip.ttest(parent_all_acc1vs5, parent_all_acc1vs5_VIP_1, "Acclimation 1", "Acclimation 5")
+
+
+parent_all_acc2vs3_VIP_sig <- vip.ttest(parent_all_acc2vs3, parent_all_acc2vs3_VIP_1, "Acclimation 2", "Acclimation 3")
+
+parent_all_acc2vs4_VIP_sig <- vip.ttest(parent_all_acc2vs4, parent_all_acc2vs4_VIP_1, "Acclimation 2", "Acclimation 4")
+
+parent_all_acc2vs5_VIP_sig <- vip.ttest(parent_all_acc2vs5, parent_all_acc2vs5_VIP_1, "Acclimation 2", "Acclimation 5")
+
+
+parent_all_acc3vs4_VIP_sig <- vip.ttest(parent_all_acc3vs4, parent_all_acc3vs4_VIP_1, "Acclimation 3", "Acclimation 4")
+
+parent_all_acc3vs5_VIP_sig <- vip.ttest(parent_all_acc3vs5, parent_all_acc3vs5_VIP_1, "Acclimation 3", "Acclimation 5")
+
+
+parent_all_acc4vs5_VIP_sig <- vip.ttest(parent_all_acc4vs5, parent_all_acc4vs5_VIP_1, "Acclimation 4", "Acclimation 5")
+```
+
+``` {r ttest known acc, echo=TRUE}
+#known compounds by acclimation treatment
+
+parent_known_acc1vs2_VIP_sig <- vip.ttest(parent_known_acc1vs2, parent_known_acc1vs2_VIP_1, "Acclimation 1", "Acclimation 2")
+
+parent_known_acc1vs3_VIP_sig <- vip.ttest(parent_known_acc1vs3, parent_known_acc1vs3_VIP_1, "Acclimation 1", "Acclimation 3")
+
+parent_known_acc1vs4_VIP_sig <- vip.ttest(parent_known_acc1vs4, parent_known_acc1vs4_VIP_1, "Acclimation 1", "Acclimation 4")
+
+parent_known_acc1vs5_VIP_sig <- vip.ttest(parent_known_acc1vs5, parent_known_acc1vs5_VIP_1, "Acclimation 1", "Acclimation 5")
+
+
+parent_known_acc2vs3_VIP_sig <- vip.ttest(parent_known_acc2vs3, parent_known_acc2vs3_VIP_1, "Acclimation 2", "Acclimation 3")
+
+parent_known_acc2vs4_VIP_sig <- vip.ttest(parent_known_acc2vs4, parent_known_acc2vs4_VIP_1, "Acclimation 2", "Acclimation 4")
+
+parent_known_acc2vs5_VIP_sig <- vip.ttest(parent_known_acc2vs5, parent_known_acc2vs5_VIP_1, "Acclimation 2", "Acclimation 5")
+
+
+parent_known_acc3vs4_VIP_sig <- vip.ttest(parent_known_acc3vs4, parent_known_acc3vs4_VIP_1, "Acclimation 3", "Acclimation 4")
+
+parent_known_acc3vs5_VIP_sig <- vip.ttest(parent_known_acc3vs5, parent_known_acc3vs5_VIP_1, "Acclimation 3", "Acclimation 5")
+
+
+parent_known_acc4vs5_VIP_sig <- vip.ttest(parent_known_acc4vs5, parent_known_acc4vs5_VIP_1, "Acclimation 4", "Acclimation 5")
+```
+
+```{r ttest all gen, echo=TRUE}
+#all compounds by genotype
+parent_all_AZvsBY_VIP_sig <- vip.ttest2(parent_all_AZvsBY, parent_all_AZvsBY_VIP_1, "AZ", "BY")
+parent_all_AZvsCX_VIP_sig <- vip.ttest2(parent_all_AZvsCX, parent_all_AZvsCX_VIP_1, "AZ", "CX")
+parent_all_AZvsDW_VIP_sig <- vip.ttest2(parent_all_AZvsDW, parent_all_AZvsDW_VIP_1, "AZ", "DW")
+parent_all_AZvsEV_VIP_sig <- vip.ttest2(parent_all_AZvsEV, parent_all_AZvsEV_VIP_1, "AZ", "EV")
+parent_all_AZvsFU_VIP_sig <- vip.ttest2(parent_all_AZvsFU, parent_all_AZvsFU_VIP_1, "AZ", "FU")
+parent_all_AZvsGT_VIP_sig <- vip.ttest2(parent_all_AZvsGT, parent_all_AZvsGT_VIP_1, "AZ", "GT")
+parent_all_AZvsHS_VIP_sig <- vip.ttest2(parent_all_AZvsHS, parent_all_AZvsHS_VIP_1, "AZ", "HS")
+parent_all_AZvsIR_VIP_sig <- vip.ttest2(parent_all_AZvsIR, parent_all_AZvsIR_VIP_1, "AZ", "IR")
+parent_all_AZvsJQ_VIP_sig <- vip.ttest2(parent_all_AZvsJQ, parent_all_AZvsJQ_VIP_1, "AZ", "JQ")
+
+parent_all_BYvsCX_VIP_sig <- vip.ttest2(parent_all_BYvsCX, parent_all_BYvsCX_VIP_1, "BY", "CX")
+parent_all_BYvsDW_VIP_sig <- vip.ttest2(parent_all_BYvsDW, parent_all_BYvsDW_VIP_1, "BY", "DW")
+parent_all_BYvsEV_VIP_sig <- vip.ttest2(parent_all_BYvsEV, parent_all_BYvsEV_VIP_1, "BY", "EV")
+parent_all_BYvsFU_VIP_sig <- vip.ttest2(parent_all_BYvsFU, parent_all_BYvsFU_VIP_1, "BY", "FU")
+parent_all_BYvsGT_VIP_sig <- vip.ttest2(parent_all_BYvsGT, parent_all_BYvsGT_VIP_1, "BY", "GT")
+parent_all_BYvsHS_VIP_sig <- vip.ttest2(parent_all_BYvsHS, parent_all_BYvsHS_VIP_1, "BY", "HS")
+parent_all_BYvsIR_VIP_sig <- vip.ttest2(parent_all_BYvsIR, parent_all_BYvsIR_VIP_1, "BY", "IR")
+parent_all_BYvsJQ_VIP_sig <- vip.ttest2(parent_all_BYvsJQ, parent_all_BYvsJQ_VIP_1, "BY", "JQ")
+
+parent_all_CXvsDW_VIP_sig <- vip.ttest2(parent_all_CXvsDW, parent_all_CXvsDW_VIP_1, "CX", "DW")
+parent_all_CXvsEV_VIP_sig <- vip.ttest2(parent_all_CXvsEV, parent_all_CXvsEV_VIP_1, "CX", "EV")
+parent_all_CXvsFU_VIP_sig <- vip.ttest2(parent_all_CXvsFU, parent_all_CXvsFU_VIP_1, "CX", "FU")
+parent_all_CXvsGT_VIP_sig <- vip.ttest2(parent_all_CXvsGT, parent_all_CXvsGT_VIP_1, "CX", "GT")
+parent_all_CXvsHS_VIP_sig <- vip.ttest2(parent_all_CXvsHS, parent_all_CXvsHS_VIP_1, "CX", "HS")
+parent_all_CXvsIR_VIP_sig <- vip.ttest2(parent_all_CXvsIR, parent_all_CXvsIR_VIP_1, "CX", "IR")
+parent_all_CXvsJQ_VIP_sig <- vip.ttest2(parent_all_CXvsJQ, parent_all_CXvsJQ_VIP_1, "CX", "JQ")
+
+parent_all_DWvsEV_VIP_sig <- vip.ttest2(parent_all_DWvsEV, parent_all_DWvsEV_VIP_1, "DW", "EV")
+parent_all_DWvsFU_VIP_sig <- vip.ttest2(parent_all_DWvsFU, parent_all_DWvsFU_VIP_1, "DW", "FU")
+parent_all_DWvsGT_VIP_sig <- vip.ttest2(parent_all_DWvsGT, parent_all_DWvsGT_VIP_1, "DW", "GT")
+parent_all_DWvsHS_VIP_sig <- vip.ttest2(parent_all_DWvsHS, parent_all_DWvsHS_VIP_1, "DW", "HS")
+parent_all_DWvsIR_VIP_sig <- vip.ttest2(parent_all_DWvsIR, parent_all_DWvsIR_VIP_1, "DW", "IR")
+parent_all_DWvsJQ_VIP_sig <- vip.ttest2(parent_all_DWvsJQ, parent_all_DWvsJQ_VIP_1, "DW", "JQ")
+
+parent_all_EVvsFU_VIP_sig <- vip.ttest2(parent_all_EVvsFU, parent_all_EVvsFU_VIP_1, "EV", "FU")
+parent_all_EVvsGT_VIP_sig <- vip.ttest2(parent_all_EVvsGT, parent_all_EVvsGT_VIP_1, "EV", "GT")
+parent_all_EVvsHS_VIP_sig <- vip.ttest2(parent_all_EVvsHS, parent_all_EVvsHS_VIP_1, "EV", "HS")
+parent_all_EVvsIR_VIP_sig <- vip.ttest2(parent_all_EVvsIR, parent_all_EVvsIR_VIP_1, "EV", "IR")
+parent_all_EVvsJQ_VIP_sig <- vip.ttest2(parent_all_EVvsJQ, parent_all_EVvsJQ_VIP_1, "EV", "JQ")
+
+parent_all_FUvsGT_VIP_sig <- vip.ttest2(parent_all_FUvsGT, parent_all_FUvsGT_VIP_1, "FU", "GT")
+parent_all_FUvsHS_VIP_sig <- vip.ttest2(parent_all_FUvsHS, parent_all_FUvsHS_VIP_1, "FU", "HS")
+parent_all_FUvsIR_VIP_sig <- vip.ttest2(parent_all_FUvsIR, parent_all_FUvsIR_VIP_1, "FU", "IR")
+parent_all_FUvsJQ_VIP_sig <- vip.ttest2(parent_all_FUvsJQ, parent_all_FUvsJQ_VIP_1, "FU", "JQ")
+
+parent_all_GTvsHS_VIP_sig <- vip.ttest2(parent_all_GTvsHS, parent_all_GTvsHS_VIP_1, "GT", "HS")
+parent_all_GTvsIR_VIP_sig <- vip.ttest2(parent_all_GTvsIR, parent_all_GTvsIR_VIP_1, "GT", "IR")
+parent_all_GTvsJQ_VIP_sig <- vip.ttest2(parent_all_GTvsJQ, parent_all_GTvsJQ_VIP_1, "GT", "JQ")
+
+parent_all_HSvsIR_VIP_sig <- vip.ttest2(parent_all_HSvsIR, parent_all_HSvsIR_VIP_1, "HS", "IR")
+parent_all_HSvsJQ_VIP_sig <- vip.ttest2(parent_all_HSvsJQ, parent_all_HSvsJQ_VIP_1, "HS", "JQ")
+
+parent_all_IRvsJQ_VIP_sig <- vip.ttest2(parent_all_IRvsJQ, parent_all_IRvsJQ_VIP_1, "IR", "JQ")
+```
+
+```{r ttest known gen, echo=TRUE}
+#all compounds by genotype
+parent_known_AZvsBY_VIP_sig <- vip.ttest2(parent_known_AZvsBY, parent_known_AZvsBY_VIP_1, "AZ", "BY")
+parent_known_AZvsCX_VIP_sig <- vip.ttest2(parent_known_AZvsCX, parent_known_AZvsCX_VIP_1, "AZ", "CX")
+parent_known_AZvsDW_VIP_sig <- vip.ttest2(parent_known_AZvsDW, parent_known_AZvsDW_VIP_1, "AZ", "DW")
+parent_known_AZvsEV_VIP_sig <- vip.ttest2(parent_known_AZvsEV, parent_known_AZvsEV_VIP_1, "AZ", "EV")
+parent_known_AZvsFU_VIP_sig <- vip.ttest2(parent_known_AZvsFU, parent_known_AZvsFU_VIP_1, "AZ", "FU")
+parent_known_AZvsGT_VIP_sig <- vip.ttest2(parent_known_AZvsGT, parent_known_AZvsGT_VIP_1, "AZ", "GT")
+parent_known_AZvsHS_VIP_sig <- vip.ttest2(parent_known_AZvsHS, parent_known_AZvsHS_VIP_1, "AZ", "HS")
+parent_known_AZvsIR_VIP_sig <- vip.ttest2(parent_known_AZvsIR, parent_known_AZvsIR_VIP_1, "AZ", "IR")
+parent_known_AZvsJQ_VIP_sig <- vip.ttest2(parent_known_AZvsJQ, parent_known_AZvsJQ_VIP_1, "AZ", "JQ")
+
+parent_known_BYvsCX_VIP_sig <- vip.ttest2(parent_known_BYvsCX, parent_known_BYvsCX_VIP_1, "BY", "CX")
+parent_known_BYvsDW_VIP_sig <- vip.ttest2(parent_known_BYvsDW, parent_known_BYvsDW_VIP_1, "BY", "DW")
+parent_known_BYvsEV_VIP_sig <- vip.ttest2(parent_known_BYvsEV, parent_known_BYvsEV_VIP_1, "BY", "EV")
+parent_known_BYvsFU_VIP_sig <- vip.ttest2(parent_known_BYvsFU, parent_known_BYvsFU_VIP_1, "BY", "FU")
+parent_known_BYvsGT_VIP_sig <- vip.ttest2(parent_known_BYvsGT, parent_known_BYvsGT_VIP_1, "BY", "GT")
+parent_known_BYvsHS_VIP_sig <- vip.ttest2(parent_known_BYvsHS, parent_known_BYvsHS_VIP_1, "BY", "HS")
+parent_known_BYvsIR_VIP_sig <- vip.ttest2(parent_known_BYvsIR, parent_known_BYvsIR_VIP_1, "BY", "IR")
+parent_known_BYvsJQ_VIP_sig <- vip.ttest2(parent_known_BYvsJQ, parent_known_BYvsJQ_VIP_1, "BY", "JQ")
+
+parent_known_CXvsDW_VIP_sig <- vip.ttest2(parent_known_CXvsDW, parent_known_CXvsDW_VIP_1, "CX", "DW")
+parent_known_CXvsEV_VIP_sig <- vip.ttest2(parent_known_CXvsEV, parent_known_CXvsEV_VIP_1, "CX", "EV")
+parent_known_CXvsFU_VIP_sig <- vip.ttest2(parent_known_CXvsFU, parent_known_CXvsFU_VIP_1, "CX", "FU")
+parent_known_CXvsGT_VIP_sig <- vip.ttest2(parent_known_CXvsGT, parent_known_CXvsGT_VIP_1, "CX", "GT")
+parent_known_CXvsHS_VIP_sig <- vip.ttest2(parent_known_CXvsHS, parent_known_CXvsHS_VIP_1, "CX", "HS")
+parent_known_CXvsIR_VIP_sig <- vip.ttest2(parent_known_CXvsIR, parent_known_CXvsIR_VIP_1, "CX", "IR")
+parent_known_CXvsJQ_VIP_sig <- vip.ttest2(parent_known_CXvsJQ, parent_known_CXvsJQ_VIP_1, "CX", "JQ")
+
+parent_known_DWvsEV_VIP_sig <- vip.ttest2(parent_known_DWvsEV, parent_known_DWvsEV_VIP_1, "DW", "EV")
+parent_known_DWvsFU_VIP_sig <- vip.ttest2(parent_known_DWvsFU, parent_known_DWvsFU_VIP_1, "DW", "FU")
+parent_known_DWvsGT_VIP_sig <- vip.ttest2(parent_known_DWvsGT, parent_known_DWvsGT_VIP_1, "DW", "GT")
+parent_known_DWvsHS_VIP_sig <- vip.ttest2(parent_known_DWvsHS, parent_known_DWvsHS_VIP_1, "DW", "HS")
+parent_known_DWvsIR_VIP_sig <- vip.ttest2(parent_known_DWvsIR, parent_known_DWvsIR_VIP_1, "DW", "IR")
+parent_known_DWvsJQ_VIP_sig <- vip.ttest2(parent_known_DWvsJQ, parent_known_DWvsJQ_VIP_1, "DW", "JQ")
+
+parent_known_EVvsFU_VIP_sig <- vip.ttest2(parent_known_EVvsFU, parent_known_EVvsFU_VIP_1, "EV", "FU")
+parent_known_EVvsGT_VIP_sig <- vip.ttest2(parent_known_EVvsGT, parent_known_EVvsGT_VIP_1, "EV", "GT")
+parent_known_EVvsHS_VIP_sig <- vip.ttest2(parent_known_EVvsHS, parent_known_EVvsHS_VIP_1, "EV", "HS")
+parent_known_EVvsIR_VIP_sig <- vip.ttest2(parent_known_EVvsIR, parent_known_EVvsIR_VIP_1, "EV", "IR")
+parent_known_EVvsJQ_VIP_sig <- vip.ttest2(parent_known_EVvsJQ, parent_known_EVvsJQ_VIP_1, "EV", "JQ")
+
+parent_known_FUvsGT_VIP_sig <- vip.ttest2(parent_known_FUvsGT, parent_known_FUvsGT_VIP_1, "FU", "GT")
+parent_known_FUvsHS_VIP_sig <- vip.ttest2(parent_known_FUvsHS, parent_known_FUvsHS_VIP_1, "FU", "HS")
+parent_known_FUvsIR_VIP_sig <- vip.ttest2(parent_known_FUvsIR, parent_known_FUvsIR_VIP_1, "FU", "IR")
+parent_known_FUvsJQ_VIP_sig <- vip.ttest2(parent_known_FUvsJQ, parent_known_FUvsJQ_VIP_1, "FU", "JQ")
+
+parent_known_GTvsHS_VIP_sig <- vip.ttest2(parent_known_GTvsHS, parent_known_GTvsHS_VIP_1, "GT", "HS")
+parent_known_GTvsIR_VIP_sig <- vip.ttest2(parent_known_GTvsIR, parent_known_GTvsIR_VIP_1, "GT", "IR")
+parent_known_GTvsJQ_VIP_sig <- vip.ttest2(parent_known_GTvsJQ, parent_known_GTvsJQ_VIP_1, "GT", "JQ")
+
+parent_known_HSvsIR_VIP_sig <- vip.ttest2(parent_known_HSvsIR, parent_known_HSvsIR_VIP_1, "HS", "IR")
+parent_known_HSvsJQ_VIP_sig <- vip.ttest2(parent_known_HSvsJQ, parent_known_HSvsJQ_VIP_1, "HS", "JQ")
+
+parent_known_IRvsJQ_VIP_sig <- vip.ttest2(parent_known_IRvsJQ, parent_known_IRvsJQ_VIP_1, "IR", "JQ")
+```
+
+
+### Assigning known and unknown values to All detected metabolite datasets
+
+``` {r knownunknown acc, echo=TRUE, warning=FALSE, message=FALSE}
+parent_all_acc1vs2_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc1vs2_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_acc1vs3_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc1vs3_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_acc1vs4_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc1vs4_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_acc1vs5_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc1vs5_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_acc2vs3_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc2vs3_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_acc2vs4_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc2vs4_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_acc2vs5_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc2vs5_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_acc3vs4_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc3vs4_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_acc3vs5_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc3vs5_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_acc4vs5_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_acc4vs5_VIP_sig$DirectParent), 'Unknown', 'Identified')
+```
+
+``` {r knownunknown gen, echo=TRUE, warning=FALSE, message=FALSE}
+parent_all_AZvsBY_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_AZvsBY_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_AZvsCX_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_AZvsCX_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_AZvsDW_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_AZvsDW_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_AZvsEV_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_AZvsEV_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_AZvsFU_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_AZvsFU_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_AZvsGT_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_AZvsGT_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_AZvsHS_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_AZvsHS_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_AZvsIR_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_AZvsIR_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_AZvsJQ_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_AZvsJQ_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_BYvsCX_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_BYvsCX_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_BYvsDW_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_BYvsDW_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_BYvsEV_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_BYvsEV_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_BYvsFU_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_BYvsFU_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_BYvsGT_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_BYvsGT_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_BYvsHS_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_BYvsHS_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_BYvsIR_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_BYvsIR_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_BYvsJQ_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_BYvsJQ_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_CXvsDW_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_CXvsDW_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_CXvsEV_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_CXvsEV_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_CXvsFU_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_CXvsFU_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_CXvsGT_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_CXvsGT_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_CXvsHS_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_CXvsHS_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_CXvsIR_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_CXvsIR_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_CXvsJQ_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_CXvsJQ_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_DWvsEV_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_DWvsEV_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_DWvsFU_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_DWvsFU_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_DWvsGT_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_DWvsGT_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_DWvsHS_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_DWvsHS_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_DWvsIR_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_DWvsIR_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_DWvsJQ_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_DWvsJQ_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_EVvsFU_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_EVvsFU_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_EVvsGT_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_EVvsGT_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_EVvsHS_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_EVvsHS_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_EVvsIR_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_EVvsIR_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_EVvsJQ_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_EVvsJQ_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_FUvsGT_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_FUvsGT_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_FUvsHS_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_FUvsHS_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_FUvsIR_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_FUvsIR_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_FUvsJQ_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_FUvsJQ_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_GTvsHS_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_GTvsHS_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_GTvsIR_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_GTvsIR_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_GTvsJQ_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_GTvsJQ_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_HSvsIR_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_HSvsIR_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+parent_all_HSvsJQ_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_HSvsJQ_VIP_sig$DirectParent), 'Unknown', 'Identified')
+
+
+parent_all_IRvsJQ_VIP_sig$Feature.status <- ifelse(grepl("unclassified", parent_all_IRvsJQ_VIP_sig$DirectParent), 'Unknown', 'Identified')
+```
+
+
+### Summary statsitics of known vs unknown metabolites
+
+``` {r Knownstats acc, echo=TRUE, warning=FALSE, message=FALSE}
+path2 <- "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/"
+
+filenames <- list.files(path = path2, pattern="csv$") #figure out how to loop this
+
+parent_all_acc1vs2_VIP_table <- as.data.frame(t(table(parent_all_acc1vs2_VIP_sig['Feature.status'])))
+
+parent_all_acc1vs3_VIP_table <- as.data.frame(t(table(parent_all_acc1vs3_VIP_sig['Feature.status'])))
+
+parent_all_acc1vs4_VIP_table <- as.data.frame(t(table(parent_all_acc1vs4_VIP_sig['Feature.status'])))
+
+parent_all_acc1vs5_VIP_table <- as.data.frame(t(table(parent_all_acc1vs5_VIP_sig['Feature.status'])))
+
+
+parent_all_acc2vs3_VIP_table <- as.data.frame(t(table(parent_all_acc2vs3_VIP_sig['Feature.status'])))
+
+parent_all_acc2vs4_VIP_table <- as.data.frame(t(table(parent_all_acc2vs4_VIP_sig['Feature.status'])))
+
+parent_all_acc2vs5_VIP_table <- as.data.frame(t(table(parent_all_acc2vs5_VIP_sig['Feature.status'])))
+
+
+parent_all_acc3vs4_VIP_table <- as.data.frame(t(table(parent_all_acc3vs4_VIP_sig['Feature.status'])))
+
+parent_all_acc3vs5_VIP_table <- as.data.frame(t(table(parent_all_acc3vs5_VIP_sig['Feature.status'])))
+
+parent_all_acc4vs5_VIP_table <- as.data.frame(t(table(parent_all_acc4vs5_VIP_sig['Feature.status'])))
+
+
+parent_all_acc1vs2_VIP_table$Comparison <- "acc1vs2"
+parent_all_acc1vs3_VIP_table$Comparison <- "acc1vs3"
+parent_all_acc1vs4_VIP_table$Comparison <- "acc1vs4"
+parent_all_acc1vs5_VIP_table$Comparison <- "acc1vs5"
+
+parent_all_acc2vs3_VIP_table$Comparison <- "acc2vs3"
+parent_all_acc2vs4_VIP_table$Comparison <- "acc2vs4"
+parent_all_acc2vs5_VIP_table$Comparison <- "acc2vs5"
+
+parent_all_acc3vs4_VIP_table$Comparison <- "acc3vs4"
+#parent_all_acc3vs5_VIP_table$Comparison <- "acc3vs5" #Error in `$<-.data.frame`(`*tmp*`, Comparison, value = "acc3vs5") : replacement has 1 row, data has 0
+
+parent_all_acc4vs5_VIP_table$Comparison <- "acc4vs5"
+
+
+feat.stat.table <- rbind(parent_all_acc1vs2_VIP_table, 
+                         parent_all_acc1vs3_VIP_table, 
+                         parent_all_acc1vs4_VIP_table, 
+                         parent_all_acc1vs5_VIP_table, 
+                         parent_all_acc2vs3_VIP_table, 
+                         parent_all_acc2vs4_VIP_table, 
+                         parent_all_acc2vs5_VIP_table, 
+                         parent_all_acc3vs4_VIP_table, 
+                         parent_all_acc4vs5_VIP_table)
+
+
+feat.stat.table.acc <- feat.stat.table %>% spread(key = Var1, value = Freq)
+
+feat.stat.table.acc
+
+write.csv(feat.stat.table.acc, "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/feat.stat.table.acc.csv")
+```
+
+``` {r Knownstats gen, echo=TRUE, warning=FALSE, message=FALSE}
+path2 <- "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/"
+
+filenames <- list.files(path = path2, pattern="csv$") #figure out how to loop this
+
+parent_all_AZvsBY_VIP_table <- as.data.frame(t(table(parent_all_AZvsBY_VIP_sig['Feature.status'])))
+
+parent_all_AZvsCX_VIP_table <- as.data.frame(t(table(parent_all_AZvsCX_VIP_sig['Feature.status'])))
+
+parent_all_AZvsDW_VIP_table <- as.data.frame(t(table(parent_all_AZvsDW_VIP_sig['Feature.status'])))
+
+parent_all_AZvsEV_VIP_table <- as.data.frame(t(table(parent_all_AZvsEV_VIP_sig['Feature.status'])))
+
+parent_all_AZvsFU_VIP_table <- as.data.frame(t(table(parent_all_AZvsFU_VIP_sig['Feature.status'])))
+
+parent_all_AZvsGT_VIP_table <- as.data.frame(t(table(parent_all_AZvsGT_VIP_sig['Feature.status'])))
+
+parent_all_AZvsHS_VIP_table <- as.data.frame(t(table(parent_all_AZvsHS_VIP_sig['Feature.status'])))
+
+parent_all_AZvsIR_VIP_table <- as.data.frame(t(table(parent_all_AZvsIR_VIP_sig['Feature.status'])))
+
+parent_all_AZvsJQ_VIP_table <- as.data.frame(t(table(parent_all_AZvsJQ_VIP_sig['Feature.status'])))
+
+
+parent_all_BYvsCX_VIP_table <- as.data.frame(t(table(parent_all_BYvsCX_VIP_sig['Feature.status'])))
+
+parent_all_BYvsDW_VIP_table <- as.data.frame(t(table(parent_all_BYvsDW_VIP_sig['Feature.status'])))
+
+parent_all_BYvsEV_VIP_table <- as.data.frame(t(table(parent_all_BYvsEV_VIP_sig['Feature.status'])))
+
+parent_all_BYvsFU_VIP_table <- as.data.frame(t(table(parent_all_BYvsFU_VIP_sig['Feature.status'])))
+
+parent_all_BYvsGT_VIP_table <- as.data.frame(t(table(parent_all_BYvsGT_VIP_sig['Feature.status'])))
+
+parent_all_BYvsHS_VIP_table <- as.data.frame(t(table(parent_all_BYvsHS_VIP_sig['Feature.status'])))
+
+parent_all_BYvsIR_VIP_table <- as.data.frame(t(table(parent_all_BYvsIR_VIP_sig['Feature.status'])))
+
+parent_all_BYvsJQ_VIP_table <- as.data.frame(t(table(parent_all_BYvsJQ_VIP_sig['Feature.status'])))
+
+
+parent_all_CXvsDW_VIP_table <- as.data.frame(t(table(parent_all_CXvsDW_VIP_sig['Feature.status'])))
+
+parent_all_CXvsEV_VIP_table <- as.data.frame(t(table(parent_all_CXvsEV_VIP_sig['Feature.status'])))
+
+parent_all_CXvsFU_VIP_table <- as.data.frame(t(table(parent_all_CXvsFU_VIP_sig['Feature.status'])))
+
+parent_all_CXvsGT_VIP_table <- as.data.frame(t(table(parent_all_CXvsGT_VIP_sig['Feature.status'])))
+
+parent_all_CXvsHS_VIP_table <- as.data.frame(t(table(parent_all_CXvsHS_VIP_sig['Feature.status'])))
+
+parent_all_CXvsIR_VIP_table <- as.data.frame(t(table(parent_all_CXvsIR_VIP_sig['Feature.status'])))
+
+parent_all_CXvsJQ_VIP_table <- as.data.frame(t(table(parent_all_CXvsJQ_VIP_sig['Feature.status'])))
+
+
+parent_all_DWvsEV_VIP_table <- as.data.frame(t(table(parent_all_DWvsEV_VIP_sig['Feature.status'])))
+
+parent_all_DWvsFU_VIP_table <- as.data.frame(t(table(parent_all_DWvsFU_VIP_sig['Feature.status'])))
+
+parent_all_DWvsGT_VIP_table <- as.data.frame(t(table(parent_all_DWvsGT_VIP_sig['Feature.status'])))
+
+parent_all_DWvsHS_VIP_table <- as.data.frame(t(table(parent_all_DWvsHS_VIP_sig['Feature.status'])))
+
+parent_all_DWvsIR_VIP_table <- as.data.frame(t(table(parent_all_DWvsIR_VIP_sig['Feature.status'])))
+
+parent_all_DWvsJQ_VIP_table <- as.data.frame(t(table(parent_all_DWvsJQ_VIP_sig['Feature.status'])))
+
+
+parent_all_EVvsFU_VIP_table <- as.data.frame(t(table(parent_all_EVvsFU_VIP_sig['Feature.status'])))
+
+parent_all_EVvsGT_VIP_table <- as.data.frame(t(table(parent_all_EVvsGT_VIP_sig['Feature.status'])))
+
+parent_all_EVvsHS_VIP_table <- as.data.frame(t(table(parent_all_EVvsHS_VIP_sig['Feature.status'])))
+
+parent_all_EVvsIR_VIP_table <- as.data.frame(t(table(parent_all_EVvsIR_VIP_sig['Feature.status'])))
+
+parent_all_EVvsJQ_VIP_table <- as.data.frame(t(table(parent_all_EVvsJQ_VIP_sig['Feature.status'])))
+
+
+parent_all_FUvsGT_VIP_table <- as.data.frame(t(table(parent_all_FUvsGT_VIP_sig['Feature.status'])))
+
+parent_all_FUvsHS_VIP_table <- as.data.frame(t(table(parent_all_FUvsHS_VIP_sig['Feature.status'])))
+
+parent_all_FUvsIR_VIP_table <- as.data.frame(t(table(parent_all_FUvsIR_VIP_sig['Feature.status'])))
+
+parent_all_FUvsJQ_VIP_table <- as.data.frame(t(table(parent_all_FUvsJQ_VIP_sig['Feature.status'])))
+
+
+parent_all_GTvsHS_VIP_table <- as.data.frame(t(table(parent_all_GTvsHS_VIP_sig['Feature.status'])))
+
+parent_all_GTvsIR_VIP_table <- as.data.frame(t(table(parent_all_GTvsIR_VIP_sig['Feature.status'])))
+
+parent_all_GTvsJQ_VIP_table <- as.data.frame(t(table(parent_all_GTvsJQ_VIP_sig['Feature.status'])))
+
+
+parent_all_HSvsIR_VIP_table <- as.data.frame(t(table(parent_all_HSvsIR_VIP_sig['Feature.status'])))
+
+parent_all_HSvsJQ_VIP_table <- as.data.frame(t(table(parent_all_HSvsJQ_VIP_sig['Feature.status'])))
+
+
+parent_all_IRvsJQ_VIP_table <- as.data.frame(t(table(parent_all_IRvsJQ_VIP_sig['Feature.status'])))
+
+
+parent_all_AZvsBY_VIP_table$Comparison <- "AZvsBY"
+#parent_all_AZvsCX_VIP_table$Comparison <- "AZvsCX"
+#parent_all_AZvsDW_VIP_table$Comparison <- "AZvsDW"
+#parent_all_AZvsEV_VIP_table$Comparison <- "AZvsEV"
+#parent_all_AZvsFU_VIP_table$Comparison <- "AZvsFU"
+#parent_all_AZvsGT_VIP_table$Comparison <- "AZvsGT"
+#parent_all_AZvsHS_VIP_table$Comparison <- "AZvsHS"
+#parent_all_AZvsIR_VIP_table$Comparison <- "AZvsIR"
+#parent_all_AZvsJQ_VIP_table$Comparison <- "AZvsJQ"
+
+parent_all_BYvsCX_VIP_table$Comparison <- "BYvsCX"
+parent_all_BYvsDW_VIP_table$Comparison <- "BYvsDW"
+parent_all_BYvsEV_VIP_table$Comparison <- "BYvsEV"
+parent_all_BYvsFU_VIP_table$Comparison <- "BYvsFU"
+#parent_all_BYvsGT_VIP_table$Comparison <- "BYvsGT"
+#parent_all_BYvsHS_VIP_table$Comparison <- "BYvsHS"
+#parent_all_BYvsIR_VIP_table$Comparison <- "BYvsIR"
+parent_all_BYvsJQ_VIP_table$Comparison <- "BYvsJQ"
+
+#parent_all_CXvsDW_VIP_table$Comparison <- "CXvsDW"
+#parent_all_CXvsEV_VIP_table$Comparison <- "CXvsEV"
+#parent_all_CXvsFU_VIP_table$Comparison <- "CXvsFU"
+#parent_all_CXvsGT_VIP_table$Comparison <- "CXvsGT"
+#parent_all_CXvsHS_VIP_table$Comparison <- "CXvsHS"
+#parent_all_CXvsIR_VIP_table$Comparison <- "CXvsIR"
+#parent_all_CXvsJQ_VIP_table$Comparison <- "CXvsJQ"
+
+#parent_all_DWvsEV_VIP_table$Comparison <- "DWvsEV"
+#parent_all_DWvsFU_VIP_table$Comparison <- "DWvsFU"
+#parent_all_DWvsGT_VIP_table$Comparison <- "DWvsGT"
+#parent_all_DWvsHS_VIP_table$Comparison <- "DWvsHS"
+#parent_all_DWvsIR_VIP_table$Comparison <- "DWvsIR"
+#parent_all_DWvsJQ_VIP_table$Comparison <- "DWvsJQ"
+
+parent_all_EVvsFU_VIP_table$Comparison <- "EVvsFU"
+#parent_all_EVvsGT_VIP_table$Comparison <- "EVvsGT"
+#parent_all_EVvsHS_VIP_table$Comparison <- "EVvsHS"
+parent_all_EVvsIR_VIP_table$Comparison <- "EVvsIR"
+parent_all_EVvsJQ_VIP_table$Comparison <- "EVvsJQ"
+
+#parent_all_FUvsGT_VIP_table$Comparison <- "FUvsGT"
+#parent_all_FUvsHS_VIP_table$Comparison <- "FUvsHS"
+parent_all_FUvsIR_VIP_table$Comparison <- "FUvsIR"
+#parent_all_FUvsJQ_VIP_table$Comparison <- "FUvsJQ"
+
+#parent_all_GTvsHS_VIP_table$Comparison <- "GTvsHS"
+#parent_all_GTvsIR_VIP_table$Comparison <- "GTvsIR"
+#parent_all_GTvsJQ_VIP_table$Comparison <- "GTvsJQ"
+
+#parent_all_HSvsIR_VIP_table$Comparison <- "HSvsIR"
+#parent_all_HSvsJQ_VIP_table$Comparison <- "HSvsJQ"
+
+#parent_all_IRvsJQ_VIP_table$Comparison <- "IRvsJQ"
+
+
+feat.stat.table2 <- rbind(parent_all_AZvsBY_VIP_table, 
+                         parent_all_BYvsCX_VIP_table, 
+                         parent_all_BYvsDW_VIP_table, 
+                         parent_all_BYvsEV_VIP_table, 
+                         parent_all_BYvsFU_VIP_table, 
+                         parent_all_BYvsJQ_VIP_table, 
+                         parent_all_EVvsFU_VIP_table, 
+                         parent_all_EVvsIR_VIP_table, 
+                         parent_all_EVvsJQ_VIP_table, 
+                         parent_all_FUvsIR_VIP_table)
+
+feat.stat.table.gen <- feat.stat.table2 %>% spread(key = Var1, value = Freq)
+
+feat.stat.table.gen
+
+write.csv(feat.stat.table.gen, "/Users/cassieraker/Documents/_URI/_Research/Data/2019_PR_ch3_chemicalecology/2021_UTAustin_data/output/feat.stat.table.gen.csv")
+```
+
+
+### VIP plotting after t-test validation
+                         
+``` {r prepare VIP plot acc, echo=TRUE, warning=FALSE, message=FALSE}
+# Attaching VIPs to t-test dataframes
+parent_all_acc1vs2_VIP_sig2 <- merge(parent_all_acc1vs2_VIP_sig, parent_all_acc1vs2_VIP_1, by = "DirectParent")
+
+parent_all_acc1vs3_VIP_sig2 <- merge(parent_all_acc1vs3_VIP_sig, parent_all_acc1vs3_VIP_1, by = "DirectParent")
+
+parent_all_acc1vs4_VIP_sig2 <- merge(parent_all_acc1vs4_VIP_sig, parent_all_acc1vs4_VIP_1, by = "DirectParent")
+
+parent_all_acc1vs5_VIP_sig2 <- merge(parent_all_acc1vs5_VIP_sig, parent_all_acc1vs5_VIP_1, by = "DirectParent")
+
+
+parent_all_acc2vs3_VIP_sig2 <- merge(parent_all_acc2vs3_VIP_sig, parent_all_acc2vs3_VIP_1, by = "DirectParent")
+
+parent_all_acc2vs4_VIP_sig2 <- merge(parent_all_acc2vs4_VIP_sig, parent_all_acc2vs4_VIP_1, by = "DirectParent")
+
+parent_all_acc2vs5_VIP_sig2 <- merge(parent_all_acc2vs5_VIP_sig, parent_all_acc2vs5_VIP_1, by = "DirectParent")
+
+
+parent_all_acc3vs4_VIP_sig2 <- merge(parent_all_acc3vs4_VIP_sig, parent_all_acc3vs4_VIP_1, by = "DirectParent")
+
+parent_all_acc4vs5_VIP_sig2 <- merge(parent_all_acc4vs5_VIP_sig, parent_all_acc4vs5_VIP_1, by = "DirectParent")
+
+```
+
+```{r VIP plot acc, echo=TRUE, warning=FALSE, message=FALSE}
+#View(parent_all_acc1vs3_VIP_sig2)
+```
+
+```{r}
+library(forcats)
+
+#plot one comparison
+plot_1vs3 <- parent_all_acc1vs3_VIP_sig2 %>%
+  mutate(DirectParent = fct_reorder(DirectParent, VIP)) %>%
+  ggplot(aes(x = VIP, y = DirectParent, fill = Enrichment.dir)) +
+  geom_hline(aes(yintercept = DirectParent), linetype = "dotted", color = "grey") +
+  geom_point(size = 3, aes(color = Enrichment.dir)) +
+  #scale_colour_manual(values=c("#8B0046", "#468B00")) +
+  #scale_fill_manual(values=c("#8B0046", "#468B00")) +
+  ylab("") +
+  xlab("VIP Score") +
+  theme_bw()
+
+plot_1vs3
+```
+
+```{r}
+#plot one comparison
+plot_4vs5 <- parent_all_acc4vs5_VIP_sig2 %>%
+  mutate(DirectParent = fct_reorder(DirectParent, VIP)) %>%
+  ggplot(aes(x = VIP, y = DirectParent, fill = Enrichment.dir)) +
+  geom_hline(aes(yintercept = DirectParent), linetype = "dotted", color = "grey") +
+  geom_point(size = 3, aes(color = Enrichment.dir)) +
+  #scale_colour_manual(values=c("#8B0046", "#468B00")) +
+  #scale_fill_manual(values=c("#8B0046", "#468B00")) +
+  ylab("") +
+  xlab("VIP Score") +
+  theme_bw()
+
+plot_4vs5
+```
+
+```{r combine VIP plot files}
+parent_all_COMBO_sig2 <- rbind(parent_all_acc1vs2_VIP_sig2, parent_all_acc1vs3_VIP_sig2, parent_all_acc1vs4_VIP_sig2, parent_all_acc1vs5_VIP_sig2, parent_all_acc2vs3_VIP_sig2, parent_all_acc2vs4_VIP_sig2, parent_all_acc2vs5_VIP_sig2, parent_all_acc3vs4_VIP_sig2, parent_all_acc4vs5_VIP_sig2)
+```
+
+```{r}
+plot_COMBO <- parent_all_COMBO_sig2 %>%
+  mutate(DirectParent = fct_reorder(DirectParent, VIP)) %>%
+  ggplot(aes(x = VIP, y = DirectParent, fill = Enrichment.dir)) +
+  geom_hline(aes(yintercept = DirectParent), linetype = "dotted", color = "grey") +
+  geom_point(size = 3, aes(color = Enrichment.dir)) + 
+  ylab("") +
+  xlab("VIP Score") +
+  theme_bw()
+
+plot_COMBO
+```
+
+```{r}
+#filter only repeated metabolites 
+#parent_all_COMBO_sig3 <- parent_all_COMBO_sig2 %>% group_by(DirectParent) %>% filter(n()>1)
+
+parent_all_COMBO_sig3 <- parent_all_COMBO_sig2 %>% group_by(DirectParent, Enrichment.dir) %>% summarise_at(vars("VIP"), mean)
+
+parent_all_COMBO_sig3 <- parent_all_COMBO_sig3 %>% group_by(DirectParent) %>% 
+  arrange(VIP) %>% 
+  mutate(order = row_number())
+```
+
+```{r}
+plot_COMBO2 <- parent_all_COMBO_sig3 %>% ungroup() %>%
+  mutate(DirectParent = fct_reorder(DirectParent, VIP, .fun = mean)) %>%
+  ggplot(aes(x = VIP, y = DirectParent, fill = Enrichment.dir)) +
+  geom_hline(aes(yintercept = DirectParent), linetype = "dotted", color = "grey") +
+  geom_point(size = 3, aes(color = Enrichment.dir)) + 
+  ylab("") +
+  xlab("VIP Score") +
+  theme_bw()
+
+plot_COMBO2
+```
+
+
+
+
+``` {r prepare VIP plot gen, echo=TRUE, warning=FALSE, message=FALSE}
+# Attaching VIPs to t-test dataframes
+parent_all_AZvsBY_VIP_sig2 <- merge(parent_all_AZvsBY_VIP_sig, parent_all_AZvsBY_VIP_1, by = "DirectParent")
+parent_all_AZvsCX_VIP_sig2 <- merge(parent_all_AZvsCX_VIP_sig, parent_all_AZvsCX_VIP_1, by = "DirectParent")
+parent_all_AZvsDW_VIP_sig2 <- merge(parent_all_AZvsDW_VIP_sig, parent_all_AZvsDW_VIP_1, by = "DirectParent")
+parent_all_AZvsEV_VIP_sig2 <- merge(parent_all_AZvsEV_VIP_sig, parent_all_AZvsEV_VIP_1, by = "DirectParent")
+parent_all_AZvsFU_VIP_sig2 <- merge(parent_all_AZvsFU_VIP_sig, parent_all_AZvsFU_VIP_1, by = "DirectParent")
+parent_all_AZvsGT_VIP_sig2 <- merge(parent_all_AZvsGT_VIP_sig, parent_all_AZvsGT_VIP_1, by = "DirectParent")
+parent_all_AZvsHS_VIP_sig2 <- merge(parent_all_AZvsHS_VIP_sig, parent_all_AZvsHS_VIP_1, by = "DirectParent")
+parent_all_AZvsIR_VIP_sig2 <- merge(parent_all_AZvsIR_VIP_sig, parent_all_AZvsIR_VIP_1, by = "DirectParent")
+parent_all_AZvsJQ_VIP_sig2 <- merge(parent_all_AZvsJQ_VIP_sig, parent_all_AZvsJQ_VIP_1, by = "DirectParent")
+
+parent_all_BYvsCX_VIP_sig2 <- merge(parent_all_BYvsCX_VIP_sig, parent_all_BYvsCX_VIP_1, by = "DirectParent")
+parent_all_BYvsDW_VIP_sig2 <- merge(parent_all_BYvsDW_VIP_sig, parent_all_BYvsDW_VIP_1, by = "DirectParent")
+parent_all_BYvsEV_VIP_sig2 <- merge(parent_all_BYvsEV_VIP_sig, parent_all_BYvsEV_VIP_1, by = "DirectParent")
+parent_all_BYvsFU_VIP_sig2 <- merge(parent_all_BYvsFU_VIP_sig, parent_all_BYvsFU_VIP_1, by = "DirectParent")
+parent_all_BYvsGT_VIP_sig2 <- merge(parent_all_BYvsGT_VIP_sig, parent_all_BYvsGT_VIP_1, by = "DirectParent")
+parent_all_BYvsHS_VIP_sig2 <- merge(parent_all_BYvsHS_VIP_sig, parent_all_BYvsHS_VIP_1, by = "DirectParent")
+parent_all_BYvsIR_VIP_sig2 <- merge(parent_all_BYvsIR_VIP_sig, parent_all_BYvsIR_VIP_1, by = "DirectParent")
+parent_all_BYvsJQ_VIP_sig2 <- merge(parent_all_BYvsJQ_VIP_sig, parent_all_BYvsJQ_VIP_1, by = "DirectParent")
+
+parent_all_CXvsDW_VIP_sig2 <- merge(parent_all_CXvsDW_VIP_sig, parent_all_CXvsDW_VIP_1, by = "DirectParent")
+parent_all_CXvsEV_VIP_sig2 <- merge(parent_all_CXvsEV_VIP_sig, parent_all_CXvsEV_VIP_1, by = "DirectParent")
+parent_all_CXvsFU_VIP_sig2 <- merge(parent_all_CXvsFU_VIP_sig, parent_all_CXvsFU_VIP_1, by = "DirectParent")
+parent_all_CXvsGT_VIP_sig2 <- merge(parent_all_CXvsGT_VIP_sig, parent_all_CXvsGT_VIP_1, by = "DirectParent")
+parent_all_CXvsHS_VIP_sig2 <- merge(parent_all_CXvsHS_VIP_sig, parent_all_CXvsHS_VIP_1, by = "DirectParent")
+parent_all_CXvsIR_VIP_sig2 <- merge(parent_all_CXvsIR_VIP_sig, parent_all_CXvsIR_VIP_1, by = "DirectParent")
+parent_all_CXvsJQ_VIP_sig2 <- merge(parent_all_CXvsJQ_VIP_sig, parent_all_CXvsJQ_VIP_1, by = "DirectParent")
+
+parent_all_DWvsEV_VIP_sig2 <- merge(parent_all_DWvsEV_VIP_sig, parent_all_DWvsEV_VIP_1, by = "DirectParent")
+parent_all_DWvsFU_VIP_sig2 <- merge(parent_all_DWvsFU_VIP_sig, parent_all_DWvsFU_VIP_1, by = "DirectParent")
+parent_all_DWvsGT_VIP_sig2 <- merge(parent_all_DWvsGT_VIP_sig, parent_all_DWvsGT_VIP_1, by = "DirectParent")
+parent_all_DWvsHS_VIP_sig2 <- merge(parent_all_DWvsHS_VIP_sig, parent_all_DWvsHS_VIP_1, by = "DirectParent")
+parent_all_DWvsIR_VIP_sig2 <- merge(parent_all_DWvsIR_VIP_sig, parent_all_DWvsIR_VIP_1, by = "DirectParent")
+parent_all_DWvsJQ_VIP_sig2 <- merge(parent_all_DWvsJQ_VIP_sig, parent_all_DWvsJQ_VIP_1, by = "DirectParent")
+
+parent_all_EVvsFU_VIP_sig2 <- merge(parent_all_EVvsFU_VIP_sig, parent_all_EVvsFU_VIP_1, by = "DirectParent")
+parent_all_EVvsGT_VIP_sig2 <- merge(parent_all_EVvsGT_VIP_sig, parent_all_EVvsGT_VIP_1, by = "DirectParent")
+parent_all_EVvsHS_VIP_sig2 <- merge(parent_all_EVvsHS_VIP_sig, parent_all_EVvsHS_VIP_1, by = "DirectParent")
+parent_all_EVvsIR_VIP_sig2 <- merge(parent_all_EVvsIR_VIP_sig, parent_all_EVvsIR_VIP_1, by = "DirectParent")
+parent_all_EVvsJQ_VIP_sig2 <- merge(parent_all_EVvsJQ_VIP_sig, parent_all_EVvsJQ_VIP_1, by = "DirectParent")
+
+parent_all_FUvsGT_VIP_sig2 <- merge(parent_all_FUvsGT_VIP_sig, parent_all_FUvsGT_VIP_1, by = "DirectParent")
+parent_all_FUvsHS_VIP_sig2 <- merge(parent_all_FUvsHS_VIP_sig, parent_all_FUvsHS_VIP_1, by = "DirectParent")
+parent_all_FUvsIR_VIP_sig2 <- merge(parent_all_FUvsIR_VIP_sig, parent_all_FUvsIR_VIP_1, by = "DirectParent")
+parent_all_FUvsJQ_VIP_sig2 <- merge(parent_all_FUvsJQ_VIP_sig, parent_all_FUvsJQ_VIP_1, by = "DirectParent")
+
+parent_all_GTvsHS_VIP_sig2 <- merge(parent_all_GTvsHS_VIP_sig, parent_all_GTvsHS_VIP_1, by = "DirectParent")
+parent_all_GTvsIR_VIP_sig2 <- merge(parent_all_GTvsIR_VIP_sig, parent_all_GTvsIR_VIP_1, by = "DirectParent")
+parent_all_GTvsJQ_VIP_sig2 <- merge(parent_all_GTvsJQ_VIP_sig, parent_all_GTvsJQ_VIP_1, by = "DirectParent")
+
+parent_all_HSvsIR_VIP_sig2 <- merge(parent_all_HSvsIR_VIP_sig, parent_all_HSvsIR_VIP_1, by = "DirectParent")
+parent_all_HSvsJQ_VIP_sig2 <- merge(parent_all_HSvsJQ_VIP_sig, parent_all_HSvsJQ_VIP_1, by = "DirectParent")
+
+parent_all_IRvsJQ_VIP_sig2 <- merge(parent_all_IRvsJQ_VIP_sig, parent_all_IRvsJQ_VIP_1, by = "DirectParent")
+```
+
+```{r}
+#plot one comparison
+plot_BYvsCX <- parent_all_BYvsCX_VIP_sig2 %>%
+  mutate(DirectParent = fct_reorder(DirectParent, VIP)) %>%
+  ggplot(aes(x = VIP, y = DirectParent, fill = Enrichment.dir)) +
+  geom_hline(aes(yintercept = DirectParent), linetype = "dotted", color = "grey") +
+  geom_point(size = 3, aes(color = Enrichment.dir)) +
+  #scale_colour_manual(values=c("#8B0046", "#468B00")) +
+  #scale_fill_manual(values=c("#8B0046", "#468B00")) +
+  ylab("") +
+  xlab("VIP Score") +
+  theme_bw()
+
+plot_BYvsCX
+```
+
+```{r combine VIP plot files gen}
+parent_allgen_COMBO_sig2 <- rbind(parent_all_AZvsBY_VIP_sig2,parent_all_AZvsCX_VIP_sig2,parent_all_AZvsDW_VIP_sig2,parent_all_AZvsEV_VIP_sig2,parent_all_AZvsFU_VIP_sig2,parent_all_AZvsGT_VIP_sig2,parent_all_AZvsHS_VIP_sig2,parent_all_AZvsIR_VIP_sig2,parent_all_AZvsJQ_VIP_sig2,parent_all_BYvsCX_VIP_sig2,parent_all_BYvsDW_VIP_sig2,parent_all_BYvsEV_VIP_sig2,parent_all_BYvsFU_VIP_sig2,parent_all_BYvsGT_VIP_sig2,parent_all_BYvsHS_VIP_sig2,parent_all_BYvsIR_VIP_sig2,parent_all_BYvsJQ_VIP_sig2,parent_all_CXvsDW_VIP_sig2,parent_all_CXvsEV_VIP_sig2,parent_all_CXvsFU_VIP_sig2,parent_all_CXvsGT_VIP_sig2,parent_all_CXvsHS_VIP_sig2,parent_all_CXvsIR_VIP_sig2,parent_all_CXvsJQ_VIP_sig2,parent_all_DWvsEV_VIP_sig2,parent_all_DWvsFU_VIP_sig2,parent_all_DWvsGT_VIP_sig2,parent_all_DWvsHS_VIP_sig2,parent_all_DWvsIR_VIP_sig2,parent_all_DWvsJQ_VIP_sig2,parent_all_EVvsFU_VIP_sig2,parent_all_EVvsGT_VIP_sig2,parent_all_EVvsHS_VIP_sig2,parent_all_EVvsIR_VIP_sig2,parent_all_EVvsJQ_VIP_sig2,parent_all_FUvsGT_VIP_sig2,parent_all_FUvsHS_VIP_sig2,parent_all_FUvsIR_VIP_sig2,parent_all_FUvsJQ_VIP_sig2,parent_all_GTvsHS_VIP_sig2,parent_all_GTvsIR_VIP_sig2,parent_all_GTvsJQ_VIP_sig2,parent_all_HSvsIR_VIP_sig2,parent_all_HSvsJQ_VIP_sig2,parent_all_IRvsJQ_VIP_sig2)
+```
+
+```{r}
+plot_COMBO_gen <- parent_allgen_COMBO_sig2 %>%
+  mutate(DirectParent = fct_reorder(DirectParent, VIP)) %>%
+  ggplot(aes(x = VIP, y = DirectParent, fill = Enrichment.dir)) +
+  geom_hline(aes(yintercept = DirectParent), linetype = "dotted", color = "grey") +
+  geom_point(size = 3, aes(color = Enrichment.dir)) + 
+  ylab("") +
+  xlab("VIP Score") +
+  theme_bw()
+
+plot_COMBO_gen
+```
+
+```{r}
+#filter only repeated metabolites 
+#parent_all_COMBO_sig3 <- parent_all_COMBO_sig2 %>% group_by(DirectParent) %>% filter(n()>1)
+
+parent_allgen_COMBO_sig3 <- parent_allgen_COMBO_sig2 %>% group_by(DirectParent, Enrichment.dir) %>% summarise_at(vars("VIP"), mean)
+
+parent_allgen_COMBO_sig3 <- parent_allgen_COMBO_sig3 %>% group_by(DirectParent) %>% 
+  arrange(VIP) %>% 
+  mutate(order = row_number())
+```
+
+```{r}
+plot_COMBO_gen2 <- parent_allgen_COMBO_sig3 %>% ungroup() %>%
+  mutate(DirectParent = fct_reorder(DirectParent, VIP, .fun = mean)) %>%
+  ggplot(aes(x = VIP, y = DirectParent, fill = Enrichment.dir)) +
+  geom_hline(aes(yintercept = DirectParent), linetype = "dotted", color = "grey") +
+  geom_point(size = 3, aes(color = Enrichment.dir)) + 
+  ylab("") +
+  xlab("VIP Score") +
+  theme_bw()
+
+plot_COMBO_gen2
+```
+
+
+#PLS-DA with WGCNA results
+
+#grey module
+```{r prepare dataset: agg_all_grey}
+#create vector of list of compounds in grey module 
+grey <- modgrey$id
+
+#subset columns from agg_all (created in data_help.Rmd) using grey vector
+agg_all_grey <- agg_all[, grey]
+
+#re-attach metadata columns from agg_all
+agg_all_grey <- cbind(agg_all[ ,3:6],agg_all_grey)
+
+#make sure acclimation treatment and genotype columns are being read as factor
+agg_all_grey$ATTRIBUTE_acclimation <- as.factor(agg_all_grey$ATTRIBUTE_acclimation)
+agg_all_grey$ATTRIBUTE_genotype <- as.factor(agg_all_grey$ATTRIBUTE_genotype)
+```
+
+```{r modgrey PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_grey$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_grey[5:16]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Grey Module PLS-DA: Acclimation")
+```
+
+```{r modgrey PLSDA: genotype}
+#select treatment names
+Y <- agg_all_grey$ATTRIBUTE_genotype
+
+#select only data columns
+X <- agg_all_grey[5:16]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Grey Module PLS-DA: Genotype")
+```
+
+#blue module
+```{r prepare dataset: agg_all_blue}
+#create vector of list of compounds in grey module 
+blue <- modblue$id
+
+#subset columns from agg_all (created in data_help.Rmd) using grey vector
+agg_all_blue <- agg_all[, blue]
+
+#re-attach metadata columns from agg_all
+agg_all_blue <- cbind(agg_all[ ,3:6],agg_all_blue)
+
+#make sure acclimation treatment and genotype columns are being read as factor
+agg_all_blue$ATTRIBUTE_acclimation <- as.factor(agg_all_blue$ATTRIBUTE_acclimation)
+agg_all_blue$ATTRIBUTE_genotype <- as.factor(agg_all_blue$ATTRIBUTE_genotype)
+```
+
+```{r modblue PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_blue$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_blue[5:49]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Blue Module PLS-DA: Acclimation")
+```
+
+```{r modblue PLSDA: genotype}
+#select treatment names
+Y <- agg_all_blue$ATTRIBUTE_genotype
+
+#select only data columns
+X <- agg_all_blue[5:49]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Blue Module PLS-DA: Genotype")
+```
+
+#red module
+```{r prepare dataset: agg_all_red}
+#create vector of list of compounds in grey module 
+red <- modred$id
+
+#subset columns from agg_all (created in data_help.Rmd) using grey vector
+agg_all_red <- agg_all[, red]
+
+#re-attach metadata columns from agg_all
+agg_all_red <- cbind(agg_all[ ,3:6],agg_all_red)
+
+#make sure acclimation treatment and genotype columns are being read as factor
+agg_all_red$ATTRIBUTE_acclimation <- as.factor(agg_all_red$ATTRIBUTE_acclimation)
+agg_all_red$ATTRIBUTE_genotype <- as.factor(agg_all_red$ATTRIBUTE_genotype)
+#View(agg_all_red)
+```
+
+```{r modred PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_red$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_red[5:13]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Red Module PLS-DA: Acclimation")
+```
+
+```{r modred PLSDA: genotype}
+#select treatment names
+Y <- agg_all_red$ATTRIBUTE_genotype
+
+#select only data columns
+X <- agg_all_red[5:13]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Red Module PLS-DA: Genotype")
+```
+
+#turquoise module
+```{r prepare dataset: agg_all_turq}
+#create vector of list of compounds in grey module 
+turq <- modturquoise$id
+
+#subset columns from agg_all (created in data_help.Rmd) using grey vector
+agg_all_turq <- agg_all[, turq]
+
+#re-attach metadata columns from agg_all
+#agg_all_grey <- rbind(agg_all(,c[3:6]))
+agg_all_turq <- cbind(agg_all[ ,3:6],agg_all_turq)
+
+#make sure acclimation treatment and genotype columns are being read as factor
+agg_all_turq$ATTRIBUTE_acclimation <- as.factor(agg_all_turq$ATTRIBUTE_acclimation)
+agg_all_turq$ATTRIBUTE_genotype <- as.factor(agg_all_turq$ATTRIBUTE_genotype)
+#View(agg_all_turq)
+```
+
+```{r modturquoise PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_turq$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_turq[5:225]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Turquoise Module PLS-DA: Acclimation")
+```
+
+```{r modturquoise PLSDA: genotype}
+#select treatment names
+Y <- agg_all_turq$ATTRIBUTE_genotype
+
+#select only data columns
+X <- agg_all_turq[5:225]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Turquoise Module PLS-DA: Genotype")
+```
+
+
+#PLS-DA within acclimation treatments and genotypes
+
+#Acclimation 1
+```{r prepare dataset: agg_all_1}
+#subset only rows in the Acclimation 1 from agg_all
+agg_all_acc1 <- agg_all[agg_all$ATTRIBUTE_acclimation == '1',]
+View(agg_all_acc1)
+```
+
+```{r acc1 PLSDA: genotype}
+#select treatment names
+Yacc1 <- agg_all_acc1$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc1 <- agg_all_acc1[7:350]
+
+#PLSDA without variable selection
+acc1.plsda <- mixOmics::plsda(Xacc1,Yacc1) # 1 Run the method
+plotIndiv(acc1.plsda)    # 2 Plot the samples
+plotVar(acc1.plsda, cutoff = 0.5)
+
+plsda_acc1 <- plotIndiv(acc1.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Acclimation 1 PLS-DA: Genotype")
+
+plsda_acc1
+```
+
+#Acclimation 2
+```{r prepare dataset: agg_all_2}
+#subset only rows in the Acclimation 2 from agg_all
+agg_all_acc2 <- agg_all[agg_all$ATTRIBUTE_acclimation == '2',]
+```
+
+```{r acc2 PLSDA: genotype}
+#select treatment names
+Yacc2 <- agg_all_acc2$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc2 <- agg_all_acc2[7:350]
+
+#PLSDA without variable selection
+acc2.plsda <- mixOmics::plsda(Xacc2,Yacc2) # 1 Run the method
+plotIndiv(acc2.plsda)    # 2 Plot the samples
+plotVar(acc2.plsda, cutoff = 0.5)
+
+plsda_acc2 <- plotIndiv(acc2.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Acclimation 2 PLS-DA: Genotype")
+
+plsda_acc2
+```
+
+#Acclimation 3
+```{r prepare dataset: agg_all_3}
+#subset only rows in the Acclimation 3 from agg_all
+agg_all_acc3 <- agg_all[agg_all$ATTRIBUTE_acclimation == '3',]
+```
+
+```{r acc3 PLSDA: genotype}
+#select treatment names
+Yacc3 <- agg_all_acc3$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc3 <- agg_all_acc3[7:350]
+
+#PLSDA without variable selection
+acc3.plsda <- mixOmics::plsda(Xacc3,Yacc3) # 1 Run the method
+plotIndiv(acc3.plsda)    # 2 Plot the samples
+plotVar(acc3.plsda, cutoff = 0.5)
+
+plsda_acc3 <- plotIndiv(acc3.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Acclimation 3 PLS-DA: Genotype")
+
+plsda_acc3
+```
+
+#Acclimation 4
+```{r prepare dataset: agg_all_4}
+#subset only rows in the Acclimation 4 from agg_all
+agg_all_acc4 <- agg_all[agg_all$ATTRIBUTE_acclimation == '4',]
+```
+
+```{r acc4 PLSDA: genotype}
+#select treatment names
+Yacc4 <- agg_all_acc4$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc4 <- agg_all_acc4[7:350]
+
+#PLSDA without variable selection
+acc4.plsda <- mixOmics::plsda(Xacc4,Yacc4) # 1 Run the method
+plotIndiv(acc4.plsda)    # 2 Plot the samples
+plotVar(acc4.plsda, cutoff = 0.5)
+
+plsda_acc4 <- plotIndiv(acc4.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Acclimation 4 PLS-DA: Genotype")
+
+plsda_acc4
+```
+
+#Acclimation 5
+```{r prepare dataset: agg_all_5}
+#subset only rows in the Acclimation 5 from agg_all
+agg_all_acc5 <- agg_all[agg_all$ATTRIBUTE_acclimation == '5',]
+```
+
+```{r acc5 PLSDA: genotype}
+#select treatment names
+Yacc5 <- agg_all_acc5$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc5 <- agg_all_acc5[7:350]
+
+#PLSDA without variable selection
+acc5.plsda <- mixOmics::plsda(Xacc5,Yacc5) # 1 Run the method
+plotIndiv(acc5.plsda)    # 2 Plot the samples
+plotVar(acc5.plsda, cutoff = 0.5)
+
+plsda_acc5 <- plotIndiv(acc5.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Acclimation 5 PLS-DA: Genotype")
+
+plsda_acc5
+```
+
+#Arrange PLSDA: Acclimation figures
+```{r arrange PLSDA acclimation figs}
+plsda_accall <- grid.arrange(plsda_acc1, plsda_acc2, plsda_acc3, plsda_acc4, plsda_acc5)
+plsda_accall 
+#Error in gList(list(df = list(x = c(0.190511332669252, -4.32063542143726, : only 'grobs' allowed in "gList"
+```
+
+#Genotype AZ
+```{r prepare dataset: agg_all_AZ}
+#subset only rows in the Genotype AZ from agg_all
+agg_all_AZ <- agg_all[agg_all$ATTRIBUTE_genotype == 'AZ',]
+```
+
+```{r AZ PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_AZ$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_AZ[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype AZ PLS-DA: Acclimation")
+```
+
+#Genotype BY
+```{r prepare dataset: agg_all_BY}
+#subset only rows in the Genotype BY from agg_all
+agg_all_BY <- agg_all[agg_all$ATTRIBUTE_genotype == 'BY',]
+```
+
+```{r BY PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_BY$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_BY[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype BY PLS-DA: Acclimation")
+```
+
+#Genotype CX
+```{r prepare dataset: agg_all_CX}
+#subset only rows in the Genotype CX from agg_all
+agg_all_CX <- agg_all[agg_all$ATTRIBUTE_genotype == 'CX',]
+```
+
+```{r CX PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_CX$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_CX[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype CX PLS-DA: Acclimation")
+```
+
+#Genotype DW
+```{r prepare dataset: agg_all_DW}
+#subset only rows in the Genotype DW from agg_all
+agg_all_DW <- agg_all[agg_all$ATTRIBUTE_genotype == 'DW',]
+```
+
+```{r DW PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_DW$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_DW[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype DW PLS-DA: Acclimation")
+```
+
+#Genotype EV
+```{r prepare dataset: agg_all_EV}
+#subset only rows in the Genotype EV from agg_all
+agg_all_EV <- agg_all[agg_all$ATTRIBUTE_genotype == 'EV',]
+```
+
+```{r EV PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_EV$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_EV[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype EV PLS-DA: Acclimation")
+```
+
+#Genotype FU
+```{r prepare dataset: agg_all_FU}
+#subset only rows in the Genotype FU from agg_all
+agg_all_FU <- agg_all[agg_all$ATTRIBUTE_genotype == 'FU',]
+```
+
+```{r FU PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_FU$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_FU[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype FU PLS-DA: Acclimation")
+```
+
+#Genotype GT
+```{r prepare dataset: agg_all_GT}
+#subset only rows in the Genotype GT from agg_all
+agg_all_GT <- agg_all[agg_all$ATTRIBUTE_genotype == 'GT',]
+```
+
+```{r GT PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_GT$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_GT[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype GT PLS-DA: Acclimation")
+```
+
+#Genotype HS
+```{r prepare dataset: agg_all_HS}
+#subset only rows in the Genotype HS from agg_all
+agg_all_HS <- agg_all[agg_all$ATTRIBUTE_genotype == 'HS',]
+```
+
+```{r HS PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_HS$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_HS[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype HS PLS-DA: Acclimation")
+```
+
+#Genotype IR
+```{r prepare dataset: agg_all_IR}
+#subset only rows in the Genotype IR from agg_all
+agg_all_IR <- agg_all[agg_all$ATTRIBUTE_genotype == 'IR',]
+```
+
+```{r IR PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_IR$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_IR[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype IR PLS-DA: Acclimation")
+```
+
+#Genotype JQ
+```{r prepare dataset: agg_all_JQ}
+#subset only rows in the Genotype JQ from agg_all
+agg_all_JQ <- agg_all[agg_all$ATTRIBUTE_genotype == 'JQ',]
+```
+
+```{r JQ PLSDA: acclimation}
+#select treatment names
+Yjq <- agg_all_JQ$ATTRIBUTE_acclimation
+
+#select only data columns
+Xjq <- agg_all_JQ[7:350]
+
+#PLSDA without variable selection
+JQ.plsda <- mixOmics::plsda(Xjq,Yjq) # 1 Run the method
+plotIndiv(JQ.plsda)    # 2 Plot the samples
+plotVar(JQ.plsda, cutoff = 0.5)
+
+plsda_jq <- plotIndiv(JQ.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Genotype JQ PLS-DA: Acclimation")
+
+plsda_jq
+```
+
+
+#PLSDA with key compounds
+```{r prepare dataset: agg_all_keycomps}
+#select only columns of key compounds from agg_all using keycompounds.txt
+agg_all_keycomps <- agg_all %>% dplyr::select(c('baca416990c75e3ce98b889c7cb02f18', '50c4567910430a7cbcc0799315924ec9', '100e039fcf15e05226be0a807cbcc627','947a5d4c7ad27a42b75192942695c109','c619eb858d1b5afd0ac936c3015e5f80'))
+
+#recombine with attribute columns
+agg_all_keycomps <- cbind(agg_all[ ,3:6],agg_all_keycomps)
+```
+
+```{r keycomps: acclimation}
+#select treatment names
+Ykeycomps <- agg_all_keycomps$ATTRIBUTE_acclimation
+
+#select only data columns
+Xkeycomps <- agg_all_keycomps[5:9]
+
+#PLSDA without variable selection
+keycomps.plsda <- mixOmics::plsda(Xkeycomps,Ykeycomps) # 1 Run the method
+plotIndiv(keycomps.plsda)    # 2 Plot the samples
+plotVar(keycomps.plsda, cutoff = 0.5)
+
+plsda_keycomps <- plotIndiv(keycomps.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Key Compounds PLS-DA: Acclimation")
+
+plsda_keycomps
+```
+
+```{r keycomps: genotype}
+#select treatment names
+Ykeycomps_g <- agg_all_keycomps$ATTRIBUTE_genotype
+
+#select only data columns
+Xkeycomps <- agg_all_keycomps[5:9]
+
+#PLSDA without variable selection
+keycomps_g.plsda <- mixOmics::plsda(Xkeycomps,Ykeycomps_g) # 1 Run the method
+plotIndiv(keycomps_g.plsda)    # 2 Plot the samples
+plotVar(keycomps_g.plsda, cutoff = 0.5)
+
+plsda_keycomps_g <- plotIndiv(keycomps_g.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Key Compounds PLS-DA: Genotype")
+
+plsda_keycomps_g
+```
+
+#PLSDA with alpha amino acids
+```{r prepare dataset: agg_all_aaa}
+#select only columns of key compounds from agg_all using keycompounds.txt
+agg_all_aaa <- agg_all %>% dplyr::select(c('baca416990c75e3ce98b889c7cb02f18', '47c0cbbc8f2c445fd8af445c4785f491'))
+
+#recombine with attribute columns
+agg_all_aaa <- cbind(agg_all[ ,3:6],agg_all_aaa)
+#View(agg_all_aaa)
+```
+
+```{r keycomps: acclimation}
+#select treatment names
+Yaaa <- agg_all_aaa$ATTRIBUTE_acclimation
+
+#select only data columns
+Xaaa <- agg_all_aaa[5:6]
+#doesn't work because there need to be at least three compounds
+
+#PLSDA without variable selection
+aaa.plsda <- mixOmics::plsda(Xaaa,Yaaa) # 1 Run the method
+plotIndiv(aaa.plsda)    # 2 Plot the samples
+plotVar(aaa.plsda, cutoff = 0.5)
+
+plsda_aaa <- plotIndiv(aaa.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Alpha Amino Acids PLS-DA: Acclimation")
+
+plsda_aaa
+```
+
+#PLSDA with Amino acids, peptides, and analogues
+```{r prepare dataset: agg_amino}
+#select only columns of compounds Amiono acids subclass from agg_all using amino$id
+agg_amino <- agg_all %>% dplyr::select(amino$id)
+
+#recombine with attribute columns
+agg_amino <- cbind(agg_all[ ,3:6],agg_amino)
+#View(agg_amino)
+```
+
+```{r amino: acclimation}
+#select treatment names
+Yamino <- agg_amino$ATTRIBUTE_acclimation
+
+#select only data columns
+Xamino <- agg_amino[5:39]
+
+#PLSDA without variable selection
+amino.plsda <- mixOmics::plsda(Xamino,Yamino) # 1 Run the method
+plotIndiv(amino.plsda)    # 2 Plot the samples
+plotVar(amino.plsda, cutoff = 0.5)
+
+plsda_amino <- plotIndiv(amino.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Amino Acids Subclass PLS-DA: Acclimation")
+
+plsda_amino
+```
+
+```{r amino: genotype}
+#select treatment names
+Yamino_g <- agg_amino$ATTRIBUTE_genotype
+
+#select only data columns
+Xamino <- agg_amino[5:39]
+
+#PLSDA without variable selection
+amino_g.plsda <- mixOmics::plsda(Xamino,Yamino_g) # 1 Run the method
+plotIndiv(amino_g.plsda)    # 2 Plot the samples
+plotVar(amino_g.plsda, cutoff = 0.5)
+
+plsda_amino_g <- plotIndiv(amino_g.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Amino Acids Subclass PLS-DA: Genotype")
+
+plsda_amino_g
+```
+
+
+
+.

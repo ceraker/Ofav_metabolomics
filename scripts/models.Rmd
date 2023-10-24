@@ -1,0 +1,124 @@
+---
+title: "models"
+output: html_document
+date: '2023-10-18'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages}
+library(tidyr)
+library(ggplot2)
+library(magrittr)
+library(reshape2)
+library(plyr)
+library(dplyr)
+library(multcomp)
+library(agricolae)
+library(stats)
+library(fitdistrplus)
+library(lme4)
+```
+
+#Linear regression on WGCNA results
+```{r create model for grey module}
+#load data (generated from moduleAccCor)
+#definitely an easier way to do this, but since there were only five numbers, I just made a new csv in excel 
+cor_grey <- read.csv("cor_grey.csv", header = TRUE)
+cor_grey <- cor_grey[ ,c(1:2)]
+cor_grey$acclimation <- as.factor(cor_grey$acclimation)
+#View(cor_grey)
+
+lm_grey <- lm(cor ~ acclimation, cor_grey)
+summary(lm_grey)
+#not enough data points you idiot!!!
+```
+
+```{r create moduleAccCor_1}
+#turn row names into column
+moduleAccCor_l <- as.data.frame(moduleAccCor)
+moduleAccCor_l <- tibble::rownames_to_column(moduleAccCor_l)
+
+moduleAccCor_l <- tidyr::pivot_longer(moduleAccCor_l, -c(rowname), values_to = "cor", names_to = "acclimation")
+#View(moduleAccCor_l)
+```
+
+```{r lm with all_long_modgrey and peak_norm}
+library(multcomp)
+all_long_modgrey$acclimation <- as.factor(all_long_modgrey$ATTRIBUTE_acclimation)
+all_long_modgrey$genotype <- as.factor(all_long_modgrey$ATTRIBUTE_genotype)
+modgrey_fit <- all_long_modgrey[,c(23:26)] #something was wrong with the all_long_modgrey dataset: kept getting the "attempt to use zero length variable name" error and couldn't fix it
+fitgrey <- lm(peak_norm ~ acclimation, data = modgrey_fit)
+summary(fitgrey)
+anova(fitgrey)
+```
+
+```{r lm with all_long_modgrey and peak_stand}
+all_long_modgrey$acclimation <- as.factor(all_long_modgrey$ATTRIBUTE_acclimation)
+modgrey_fit <- all_long_modgrey[,c(21,23:25)] #something was wrong with the all_long_modgrey dataset: kept getting the "attempt to use zero length variable name" error and couldn't fix it
+fitgrey2 <- lm(peak_stand ~ acclimation, data = modgrey_fit)
+summary(fitgrey2)
+anova(fitgrey2)
+```
+
+```{r lm with all_long_modgrey and peak_norm}
+fitgrey_ag <- lm(peak_norm ~ acclimation + ATTRIBUTE_genotype, data = modgrey_fit)
+summary(fitgrey_ag)
+anova(fitgrey_ag)
+
+fitgrey_ag2 <- lm(peak_stand ~ acclimation + ATTRIBUTE_genotype, data = modgrey_fit)
+summary(fitgrey_ag2)
+anova(fitgrey_ag2)
+```
+
+
+#Mixed effects model with WGCNA results
+#using 'lme4' package
+```{r}
+#with peak_norm
+lme_grey <- lmer(peak_norm ~ acclimation + (1|genotype), data = modgrey_fit)
+summary(lme_grey)
+anova(lme_grey)
+
+#with peak_stand
+lme_grey2 <- lmer(peak_stand ~ acclimation + (1|genotype), data = modgrey_fit)
+summary(lme_grey2)
+anova(lme_grey2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.

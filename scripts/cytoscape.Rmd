@@ -1,0 +1,427 @@
+---
+title: "cytoscape"
+output: html_document
+date: '2023-07-31'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#code from https://cytoscape.org/cytoscape-automation/for-scripters/R/notebooks/Top-genes-and-coexpression.nb.html
+
+```{r load packages, warning=FALSE, message=FALSE, echo=FALSE}
+library(BiocManager)
+#BiocManager::install("RCy3")
+library("RCy3")
+library(RColorBrewer)
+library(tidyverse)
+library(dplyr)
+```
+
+```{r check Cytoscape}
+cytoscapePing()
+cytoscapeVersionInfo()
+```
+
+```{r install Cytoscape apps}
+installApp('STRINGapp')  
+installApp('aMatReader')
+installApp('clusterMaker2')
+```
+
+```{r example data}
+getwd()
+
+#load data files
+RNASeq_expression_matrix <- read.table("https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/gh-pages/presentations/modules/RCy3_ExampleData/data/TCGA_OV_RNAseq_expression.txt", header = TRUE, sep = "\t", quote="\"", stringsAsFactors = FALSE)
+
+RNASeq_gene_scores <- read.table("https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/gh-pages/presentations/modules/RCy3_ExampleData/data/TCGA_OV_RNAseq_All_edgeR_scores.txt", header = TRUE, sep = "\t", quote="\"", stringsAsFactors = FALSE)
+
+#View(RNASeq_expression_matrix)
+#View(RNASeq_gene_scores)
+```
+
+```{r}
+#view WGCNA data matrix
+#View(moduleAccCor) #no
+#View(moduleGenCor) #no
+
+#view a bunch of my data to figure out which dataset is the one to use with this analysis
+#View(tagg_all_filt) #maybe
+#View(agg_all_filt) #try this first
+#View(netwk) #no
+```
+
+#attempt network construction with agg_all_filt dataframe (generated in wgcna.Rmd)
+```{r create correlation matrix}
+#make agg_all_filt a matrix
+agg_all_filt_mat <- agg_all_filt %>% mutate( across( where(is.character), ~ as.numeric(.x) ) )
+
+#(code from tutorial starts here)
+agg_all_COR_mat <- cor(t(agg_all_filt_mat), method="pearson") #Note: the tutorial said this would take awhile, but it took seconds for me
+
+#set the diagonal of matrix to zero - eliminate self-correlation
+agg_all_COR_mat[ 
+  row(agg_all_COR_mat) == col(agg_all_COR_mat) ] <- 0
+
+# set all correlations that are less than 0.9 to zero: I SHOULD CHOOSE A DIFFERENT THRESHOLD IF I GET THIS TO WORK
+# RNAseq_correlation_matrix[which(RNAseq_correlation_matrix<0.90)] <- 0
+
+#get rid of rows and columns that have no correlations with the above thresholds
+agg_all_COR_mat <- agg_all_COR_mat[which(rowSums(agg_all_COR_mat) != 0),
+                          which(colSums(agg_all_COR_mat) !=0)]
+
+#write out the correlation file
+correlation_agg_all_filt <- file.path(getwd(), "agg_all_filt_correlation_matrix.txt") 
+write.table(agg_all_COR_mat,  file = correlation_agg_all_filt, col.names  = TRUE, row.names = FALSE, sep = "\t", quote=FALSE)
+```
+
+```{r network from correlation analysis}
+#Use the CyRest call to access the aMatReader functionality
+amat_url <- "aMatReader/v1/import"
+amat_params = list(files = list(correlation_agg_all_filt),
+                   delimiter = "TAB",
+                   undirected = TRUE,
+                   ignoreZeros = TRUE,
+                   interactionName = "correlated with",
+                   rowNames = FALSE
+                   )
+ 
+response <- cyrestPOST(operation = amat_url, body = amat_params, base.url = "http://localhost:1234")
+
+current_network_id <- response$data["suid"]
+```
+
+```{r}
+#relayout network
+layoutNetwork('cose',
+              network = as.numeric(current_network_id))
+
+renameNetwork(title ="WGCNA_v4", network = as.numeric(current_network_id))
+```
+
+```{r format nodes and visualization}
+nodes_in_network <- rownames(agg_all_COR_mat)
+
+#designate node class
+#node_class <- vector(length = length(nodes_in_network),mode = "character") #from tutorial: set significant values for genes so doesn't apply here 
+
+#filter siri file since I'm using the filtered dataframe from the earlier WGCNA analysis
+siri_filt <- subset(siri, id %in% row.names(agg_all_filt))
+rownames(siri_filt) <- siri_filt$id
+
+node_class <- module_df$Module
+
+node_class <- trimws(node_class)
+node_class_df <-data.frame(name=nodes_in_network, node_class,stringsAsFactors = FALSE)
+
+head(node_class_df)
+```
+
+```{r map new node attribute}
+loadTableData(siri_filt,table.key.column = "name",data.key.column = "id")  #default data.frame key is row.names
+
+loadTableData(node_class_df,table.key.column = "name",data.key.column = "name")
+
+loadTableData(module_df,table.key.column = "name",data.key.column = "metabolite")
+```
+
+```{r color mapping}
+#create a new mapping with the different types
+unique_types <- sort(unique(node_class))
+
+coul = brewer.pal(7, "Set1") 
+
+#coul = mapVisualProperty('node fill color','Module','d',c("turquoise","green","blue","grey","red","yellow","brown"), c("#53e0cf","#3ffa00","#0024ff","#bebebe","#fa2b00","#fffd00","#a22c26"))
+ 
+# I can add more tones to this palette :
+coul = colorRampPalette(coul)(length(unique_types))
+
+setNodeColorMapping(table.column = "node_class",table.column.values = unique_types,
+                    colors = coul,mapping.type = "d")
+```
+
+```{r cluster the network}
+#make sure it is set to the right network
+setCurrentNetwork(network = getNetworkName(suid=as.numeric(current_network_id)))
+
+#cluster the network
+clustermaker_url <- paste("cluster mcl network=SUID:",current_network_id, sep="")
+commandsGET(clustermaker_url)
+  
+#get the clustering results
+default_node_table <- getTableColumns(table= "node",network = as.numeric(current_network_id))
+ 
+head(default_node_table)
+```
+
+```{r customize style}
+#setVisualStyle("default")
+#layoutNetwork('force-directed defaultSpringCoefficient=0.000005 defaultSpringLength=60')
+
+setNodeShapeDefault('ELLIPSE', style.name = "default")
+
+#customize style
+#style.name = "myStyle"
+#defaults <- list(NODE_SHAPE="ellipse",
+                 #NODE_SIZE=5,
+                 #EDGE_TRANSPARENCY=120,
+                 #NODE_LABEL_POSITION="none")
+#nodeLabels <- mapVisualProperty('node label','id','p')
+nodeFills <- mapVisualProperty('node fill color','Module','d',c("turquoise","green","blue","grey","red","yellow","brown"), c("#53e0cf","#3ffa00","#0024ff","#bebebe","#fa2b00","#fffd00","#a22c26"))
+#arrowShapes <- mapVisualProperty('Edge Target Arrow Shape','interaction','d',c("activates","inhibits","interacts"),c("Arrow","T","None"))
+#edgeWidth <- mapVisualProperty('edge width','weight','p')
+
+#createVisualStyle(style.name, defaults, list(nodeLabels,nodeFills,arrowShapes,edgeWidth))
+#setVisualStyle(style.name)
+
+fitContent(selected.only = FALSE, network = NULL)
+```
+
+```{r customize style attempt 2}
+style.name = "WGCNAStyle"
+defaults.list <- list(NODE_SHAPE="ellipse",
+                 NODE_SIZE=5,
+                 NODE_FILL_COLOR="#AAAAAA",
+                 EDGE_TRANSPARENCY=120)
+#node.label.map <- mapVisualProperty('metabolite','direct_parent','p') # p for passthrough; nothing else needed
+createVisualStyle(style.name, defaults.list, list(node.label.map))
+setVisualStyle(style.name=style.name)
+```
+```{r}
+getVisualPropertyNames()
+```
+
+```{r export png of network}
+cluster1enr_png_file_name <- "cluster1em.png"
+
+if(file.exists(cluster1enr_png_file_name)){file.remove(cluster1enr_png_file_name)} 
+
+#before exporting the network: open Cytoscape and tell it to generate the network
+#export the network
+exportImage(cluster1enr_png_file_name, type = "png")
+
+#this works but the network looks terrible: it's there, just formatted badly 
+```
+#code works up to here 
+
+#practice formatting with subnetwork
+```{r select subnetwork}
+current_cluster <- "1"
+#select all the nodes in cluster 1
+selectednodes <- selectNodes(current_cluster, by.col="__mclCluster")
+  
+#create a subnetwork with cluster 1
+subnetwork_suid <- createSubnetwork(nodes="selected")
+
+defaults <- list(NODE_SHAPE="ellipse",
+                 NODE_SIZE=5,
+                 EDGE_TRANSPARENCY=120,
+                 NODE_LABEL_POSITION="none")
+
+setVisualStyle("default")
+layoutNetwork('force-directed defaultSpringCoefficient=0.000005 defaultSpringLength=60')
+```
+
+
+#FORMATTING PRACTICE
+```{r my first network practice}
+nodes <- data.frame(id=c("node 0","node 1","node 2","node 3"),
+           group=c("A","A","B","B"), # categorical strings
+           score=as.integer(c(20,10,15,5)), # integers
+           stringsAsFactors=FALSE)
+edges <- data.frame(source=c("node 0","node 0","node 0","node 2"),
+           target=c("node 1","node 2","node 3","node 3"),
+           interaction=c("inhibits","interacts","activates","interacts"),  # optional
+           weight=c(5.1,3.0,5.2,9.9), # numeric
+           stringsAsFactors=FALSE)
+
+createNetworkFromDataFrames(nodes,edges, title="my first network", collection="DataFrame Example")
+
+setVisualStyle('Marquee')
+
+style.name = "myStyle"
+defaults <- list(NODE_SHAPE="diamond",
+                 NODE_SIZE=30,
+                 EDGE_TRANSPARENCY=120,
+                 NODE_LABEL_POSITION="W,E,c,0.00,0.00")
+nodeLabels <- mapVisualProperty('node label','id','p')
+nodeFills <- mapVisualProperty('node fill color','group','d',c("A","B"), c("#FF9900","#66AAAA"))
+arrowShapes <- mapVisualProperty('Edge Target Arrow Shape','interaction','d',c("activates","inhibits","interacts"),c("Arrow","T","None"))
+edgeWidth <- mapVisualProperty('edge width','weight','p')
+
+createVisualStyle(style.name, defaults, list(nodeLabels,nodeFills,arrowShapes,edgeWidth))
+setVisualStyle(style.name)
+
+#okay these work and create a network in cytoscape so what gives
+```
+
+#USING EXAMPLE DATA
+```{r}
+RNASeq_expression <- RNASeq_expression_matrix[,3:ncol(RNASeq_expression_matrix)]
+
+rownames(RNASeq_expression) <- RNASeq_expression_matrix$Name
+RNAseq_correlation_matrix <- cor(t(RNASeq_expression), method="pearson") #Note: this takes a while
+
+#set the diagonal of matrix to zero - eliminate self-correlation
+RNAseq_correlation_matrix[ 
+  row(RNAseq_correlation_matrix) == col(RNAseq_correlation_matrix) ] <- 0
+
+# set all correlations that are less than 0.9 to zero
+RNAseq_correlation_matrix[which(RNAseq_correlation_matrix<0.90)] <- 0
+
+#get rid of rows and columns that have no correlations with the above thresholds
+RNAseq_correlation_matrix <- RNAseq_correlation_matrix[which(rowSums(RNAseq_correlation_matrix) != 0),
+                          which(colSums(RNAseq_correlation_matrix) !=0)]
+
+#write out the correlation file
+correlation_filename <- file.path(getwd(), "TCGA_OV_RNAseq_expression_correlation_matrix.txt") 
+write.table(RNAseq_correlation_matrix,  file = correlation_filename, col.names  = TRUE, row.names = FALSE, sep = "\t", quote=FALSE)
+```
+
+```{r}
+amat_url <- "aMatReader/v1/import"
+amat_params = list(files = list(correlation_filename),
+                   delimiter = "TAB",
+                   undirected = TRUE,
+                   ignoreZeros = TRUE,
+                   interactionName = "correlated with",
+                   rowNames = FALSE
+                   )
+ 
+response <- cyrestPOST(operation = amat_url, body = amat_params, base.url = "http://localhost:1234")
+
+current_network_id <- response$data["suid"]
+```
+
+```{r}
+#relayout network
+layoutNetwork('cose',
+              network = as.numeric(current_network_id))
+
+renameNetwork(title ="Coexpression_network_pear0_95_v2",
+              network = as.numeric(current_network_id))
+```
+
+```{r}
+nodes_in_network <- rownames(RNAseq_correlation_matrix)
+
+#add an additional column to the gene scores table to indicate in which samples
+# the gene is significant
+node_class <- vector(length = length(nodes_in_network),mode = "character")
+for(i in 1:length(nodes_in_network)){
+  current_row <- which(RNASeq_gene_scores$Name == nodes_in_network[i])
+  min_pvalue <- min(RNASeq_gene_scores[current_row,
+                                       grep(colnames(RNASeq_gene_scores), pattern = "FDR")])
+  if(RNASeq_gene_scores$FDR.mesen[current_row] <=min_pvalue){
+    node_class[i] <- paste(node_class[i],"mesen",sep = " ")
+  }
+  if(RNASeq_gene_scores$FDR.diff[current_row] <=min_pvalue){
+    node_class[i] <- paste(node_class[i],"diff",sep = " ")
+  }
+  if(RNASeq_gene_scores$FDR.prolif[current_row] <=min_pvalue){
+    node_class[i] <- paste(node_class[i],"prolif",sep = " ")
+  }
+  if(RNASeq_gene_scores$FDR.immuno[current_row] <=min_pvalue){
+    node_class[i] <- paste(node_class[i],"immuno",sep = " ")
+  }
+}
+node_class <- trimws(node_class)
+node_class_df <-data.frame(name=nodes_in_network, node_class,stringsAsFactors = FALSE)
+
+head(node_class_df)
+```
+
+```{r}
+loadTableData(RNASeq_gene_scores,table.key.column = "name",data.key.column = "Name")  #default data.frame key is row.names
+
+loadTableData(node_class_df,table.key.column = "name",data.key.column = "name")  #default data.frame key is row.names
+```
+
+```{r}
+#create a new mapping with the different types
+unique_types <- sort(unique(node_class))
+
+coul = brewer.pal(4, "Set1") 
+ 
+# I can add more tones to this palette :
+coul = colorRampPalette(coul)(length(unique_types))
+
+setNodeColorMapping(table.column = "node_class",table.column.values = unique_types,
+                    colors = coul,mapping.type = "d")
+```
+
+```{r}
+#make sure it is set to the right network
+setCurrentNetwork(network = getNetworkName(suid=as.numeric(current_network_id)))
+
+#cluster the network
+clustermaker_url <- paste("cluster mcl network=SUID:",current_network_id, sep="")
+commandsGET(clustermaker_url)
+  
+#get the clustering results
+default_node_table <- getTableColumns(table= "node",network = as.numeric(current_network_id))
+ 
+head(default_node_table)
+```
+
+```{r}
+current_cluster <- "1"
+#select all the nodes in cluster 1
+selectednodes <- selectNodes(current_cluster, by.col="__mclCluster")
+  
+#create a subnetwork with cluster 1
+subnetwork_suid <- createSubnetwork(nodes="selected")
+```
+
+```{r}
+commandsRun('string stringify column="name" species="Homo sapiens"')
+
+setVisualStyle("default")
+layoutNetwork('force-directed defaultSpringCoefficient=0.000005 defaultSpringLength=60')
+
+commandsPOST('string retrieve enrichment')
+commandsPOST('string show enrichment') #toggles to 'hide' after running
+commandsPOST('string show charts')
+```
+
+```{r}
+cluster1enr_png_file_name <- "cluster1em.png"
+
+if(file.exists(cluster1enr_png_file_name)){
+  #cytoscape hangs waiting for user response if file already exists.  Remove it first
+  file.remove(cluster1enr_png_file_name)
+  } 
+
+#export the network
+exportImage(cluster1enr_png_file_name, type = "png")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.
