@@ -28,6 +28,10 @@ library("broom")
 library(janitor)
 library(mdatools)
 library(tibble)
+#install.packages("hrbrthemes")
+library(hrbrthemes)
+library(gridExtra)
+library(ggpubr)
 ```
 
 ```{r load packages, warning=FALSE, message=FALSE}
@@ -735,8 +739,76 @@ submod_df %>% ggplot(., aes(x=name, y=value, group=gene_id)) +
 ```
 
 
+## Linear regressions fo modules
 
+```{r add metada to eigenvalues}
+#turn coral ID into row names
+#meta2 <- data.frame(meta2, row.names = 2)
 
+#add new column to metadata that treats acclimation time as a numeric variable (i.e. # of days)
+meta2$acclimation2 <- case_when(meta2$ATTRIBUTE_acclimation == 1 ~ 126, 
+                               meta2$ATTRIBUTE_acclimation == 2 ~ 112,
+                               meta2$ATTRIBUTE_acclimation == 3 ~ 38,
+                               meta2$ATTRIBUTE_acclimation == 4 ~ 24,
+                               meta2$ATTRIBUTE_acclimation == 5 ~ 0,)
+meta2$acclimation2 <- as.numeric(meta2$acclimation2)
+
+#merge with eigenvalues
+eigen <- merge(MEs, meta2, by=0)
+#View(eigen)
+```
+
+## Plot
+```{r}
+brown <- ggplot(eigen, aes(x=acclimation2, y=MEbrown)) +
+  #geom_point() +
+  geom_smooth(method=lm, color="red", fill="#69b3a2", se=TRUE) +
+  stat_cor(label.x = 15, label.y = -0.02) +
+  theme_ipsum()
+brown
+
+turquoise <- ggplot(eigen, aes(x=acclimation2, y=MEturquoise)) +
+  #geom_point() +
+  geom_smooth(method=lm, color="red", fill="#69b3a2", se=TRUE) +
+  stat_cor(label.x = 15, label.y = -0.02) +
+  theme_ipsum()
+turquoise
+
+blue <- ggplot(eigen, aes(x=acclimation2, y=MEblue)) +
+  #geom_point() +
+  geom_smooth(method=lm, color="red", fill="#69b3a2", se=TRUE) +
+  stat_cor(label.x = 15, label.y = -0.02) +
+  theme_ipsum()
+blue
+
+yellow <- ggplot(eigen, aes(x=acclimation2, y=MEyellow)) +
+  #geom_point() +
+  geom_smooth(method=lm, color="red", fill="#69b3a2", se=TRUE) +
+  stat_cor(label.x = 15, label.y = -0.02) +
+  theme_ipsum()
+yellow
+
+red <- ggplot(eigen, aes(x=acclimation2, y=MEred)) +
+  #geom_point() +
+  geom_smooth(method=lm, color="red", fill="#69b3a2", se=TRUE) +
+  stat_cor(label.x = 15, label.y = -0.02) +
+  theme_ipsum()
+red
+
+green <- ggplot(eigen, aes(x=acclimation2, y=MEgreen)) +
+  #geom_point() +
+  geom_smooth(method=lm, color="red", fill="#69b3a2", se=TRUE) +
+  stat_cor(label.x = 15, label.y = -0.02) +
+  theme_ipsum()
+green
+
+grey <- ggplot(eigen, aes(x=acclimation2, y=MEgrey)) +
+  #geom_point() +
+  geom_smooth(method=lm, color="red", fill="#69b3a2", se=TRUE) +
+  stat_cor(label.x = 15, label.y = -0.02) +
+  theme_ipsum()
+grey
+```
 
 
 
