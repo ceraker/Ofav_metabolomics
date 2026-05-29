@@ -1,0 +1,513 @@
+---
+title: "plsda.rmd"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+#load required libraries
+library(rlang)
+library(forcats)
+library(tidyr)
+library("reshape")
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library("arsenal")
+library("Rmisc")
+library(gridExtra)
+library(ggpubr)
+library(factoextra)
+library(ggplot2)
+library(RColorBrewer)
+library(lme4)
+library(lmerTest)
+library(car)
+library(effects)
+library(ggfortify)
+library(cowplot)
+library(vegan)
+library(corrr)
+library(ggcorrplot)
+library(GGally)
+library(broom)
+library(cowplot)
+library(RVAideMemoire)
+library(arsenal)
+library(patchwork)
+library(tidyr)
+library(ggrepel)
+library(randomForest)
+library("janitor")
+library(varImp)
+library(mdatools)
+```
+
+```{r}
+#install latest version of mixOmics using Bioconducter 
+library("BiocManager")
+#BiocManager::install('mixOmics')
+library("mixOmics")
+```
+
+#use agg_parent_norm_all dataframe (generated in data_help.Rmd) using ACCLIMATION TREATMENT
+```{r load data}
+agg_parent_norm_all <- read.csv("agg_parent_norm_all.csv", check.names = FALSE)
+```
+
+```{r add new column}
+agg_parent_norm_all$acclimation2 <- case_when(agg_parent_norm_all$ATTRIBUTE_acclimation == 1 ~ "126 Days",
+                               agg_parent_norm_all$ATTRIBUTE_acclimation == 2 ~ "112 Days",
+                               agg_parent_norm_all$ATTRIBUTE_acclimation == 3 ~ "38 Days",
+                               agg_parent_norm_all$ATTRIBUTE_acclimation == 4 ~ "24 Days",
+                               agg_parent_norm_all$ATTRIBUTE_acclimation == 5 ~ "0 Days",)
+```
+
+```{r}
+#select treatment names
+Y <- agg_parent_norm_all$ATTRIBUTE_acclimation
+```
+
+```{r}
+#select only data columns
+X <- agg_parent_norm_all[5:58]
+```
+
+```{r}
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)  
+```
+
+```{r}
+dp_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE, ellipse = TRUE, title="Direct Parent PLS-DA: Acclimation",col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+dp_acc <- dp_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))
+dp_acc
+```
+
+#use agg_parent_norm_all dataframe (generated in data_help.Rmd) using GENOTYPE
+
+```{r}
+#select treatment names
+Y <- agg_parent_norm_all$ATTRIBUTE_genotype
+```
+
+```{r}
+#select only data columns
+X <- agg_parent_norm_all[5:58]
+```
+
+```{r}
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)  
+```
+
+```{r}
+plotIndiv(MyResult.plsda, comp = 1:2, group = agg_parent_norm_all$ATTRIBUTE_genotype, ind.names = FALSE, legend=TRUE, ellipse = TRUE, title="Direct Parent PLS-DA: Source Colony")
+```
+
+```{r}
+dp_gen <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE, ellipse = TRUE, title="Direct Parent PLS-DA: Source Colony")$graph
+
+dp_gen <- dp_gen + scale_color_manual(name = "Source \nColony", labels=c("AZ", "BY", "CX", "DW", "EV", "FU", "GT", "HS", "IR", "JQ"), values=c("#000e94", "#0024ff", "#116bff", "#34deff", "#63fba5", "#c3fb00", "#fdd000", "#fa6200", "#e92800", "#7c1000"))
+dp_gen
+```
+
+
+#PLS-DA within acclimation treatments and genotypes
+
+```{r}
+agg_all <- read.csv("agg_all.csv", check.names = FALSE)
+```
+
+#Acclimation 1
+```{r prepare dataset: agg_all_1}
+#subset only rows in the Acclimation 1 from agg_all
+agg_all_acc1 <- agg_all[agg_all$ATTRIBUTE_acclimation == '1',]
+#View(agg_all_acc1)
+```
+
+```{r acc1 PLSDA: genotype}
+#select treatment names
+Yacc1 <- agg_all_acc1$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc1 <- agg_all_acc1[7:350]
+
+#PLSDA without variable selection
+acc1.plsda <- mixOmics::plsda(Xacc1,Yacc1) # 1 Run the method
+plotIndiv(acc1.plsda)    # 2 Plot the samples
+plotVar(acc1.plsda, cutoff = 0.5)
+
+plsda_acc1 <- plotIndiv(acc1.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Acclimation 1 PLS-DA: Genotype",pch = c(2,3,4,5,6,7,8,9,10),col=c("#0024ff", "#116bff", "#34deff", "#63fba5", "#c3fb00", "#fdd000", "#fa6200", "#e92800", "#7c1000"))$graph
+plsda_acc1 <- plsda_acc1 + scale_color_manual(name = "Source \nColony", labels=c("BY", "CX", "DW", "EV", "FU", "GT", "HS", "IR", "JQ"), values=c("#0024ff", "#116bff", "#34deff", "#63fba5", "#c3fb00", "#fdd000", "#fa6200", "#e92800", "#7c1000"))
+plsda_acc1
+```
+
+#Acclimation 2
+```{r prepare dataset: agg_all_2}
+#subset only rows in the Acclimation 2 from agg_all
+agg_all_acc2 <- agg_all[agg_all$ATTRIBUTE_acclimation == '2',]
+```
+
+```{r acc2 PLSDA: genotype}
+#select treatment names
+Yacc2 <- agg_all_acc2$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc2 <- agg_all_acc2[7:350]
+
+#PLSDA without variable selection
+acc2.plsda <- mixOmics::plsda(Xacc2,Yacc2) # 1 Run the method
+plotIndiv(acc2.plsda)    # 2 Plot the samples
+plotVar(acc2.plsda, cutoff = 0.5)
+
+plsda_acc2 <- plotIndiv(acc2.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Acclimation 2 PLS-DA: Genotype",pch = c(2,3,4,5,6,7,8,9,10),col=c("#0024ff", "#116bff", "#34deff", "#63fba5", "#c3fb00", "#fdd000", "#fa6200", "#e92800", "#7c1000"))$graph
+plsda_acc2 <- plsda_acc2 + scale_color_manual(name = "Source \nColony", labels=c("BY", "CX", "DW", "EV", "FU", "GT", "HS", "IR", "JQ"), values=c("#0024ff", "#116bff", "#34deff", "#63fba5", "#c3fb00", "#fdd000", "#fa6200", "#e92800", "#7c1000"))
+plsda_acc2
+```
+
+#Acclimation 3
+```{r prepare dataset: agg_all_3}
+#subset only rows in the Acclimation 3 from agg_all
+agg_all_acc3 <- agg_all[agg_all$ATTRIBUTE_acclimation == '3',]
+```
+
+```{r acc3 PLSDA: genotype}
+#select treatment names
+Yacc3 <- agg_all_acc3$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc3 <- agg_all_acc3[7:350]
+
+#PLSDA without variable selection
+acc3.plsda <- mixOmics::plsda(Xacc3,Yacc3) # 1 Run the method
+plotIndiv(acc3.plsda)    # 2 Plot the samples
+plotVar(acc3.plsda, cutoff = 0.5)
+
+plsda_acc3 <- plotIndiv(acc3.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Acclimation 3 PLS-DA: Genotype")$graph
+
+plsda_acc3
+```
+
+#Acclimation 4
+```{r prepare dataset: agg_all_4}
+#subset only rows in the Acclimation 4 from agg_all
+agg_all_acc4 <- agg_all[agg_all$ATTRIBUTE_acclimation == '4',]
+```
+
+```{r acc4 PLSDA: genotype}
+#select treatment names
+Yacc4 <- agg_all_acc4$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc4 <- agg_all_acc4[7:350]
+
+#PLSDA without variable selection
+acc4.plsda <- mixOmics::plsda(Xacc4,Yacc4) # 1 Run the method
+plotIndiv(acc4.plsda)    # 2 Plot the samples
+plotVar(acc4.plsda, cutoff = 0.5)
+
+plsda_acc4 <- plotIndiv(acc4.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Acclimation 4 PLS-DA: Genotype")$graph
+
+plsda_acc4
+
+plsda_acc4_leg <- plotIndiv(acc4.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Acclimation 4 PLS-DA: Genotype")$graph
+```
+
+#Acclimation 5
+```{r prepare dataset: agg_all_5}
+#subset only rows in the Acclimation 5 from agg_all
+agg_all_acc5 <- agg_all[agg_all$ATTRIBUTE_acclimation == '5',]
+```
+
+```{r acc5 PLSDA: genotype}
+#select treatment names
+Yacc5 <- agg_all_acc5$ATTRIBUTE_genotype
+
+#select only data columns
+Xacc5 <- agg_all_acc5[7:350]
+
+#PLSDA without variable selection
+acc5.plsda <- mixOmics::plsda(Xacc5,Yacc5) # 1 Run the method
+plotIndiv(acc5.plsda)    # 2 Plot the samples
+plotVar(acc5.plsda, cutoff = 0.5)
+
+plsda_acc5 <- plotIndiv(acc5.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Acclimation 5 PLS-DA: Genotype",col = c("#000e94", "#0024ff", "#116bff", "#34deff", "#c3fb00", "#fdd000", "#fa6200", "#e92800", "#7c1000"),pch = c(1,2,3,4,6,7,8,9,10))$graph
+
+plsda_acc5
+```
+
+#Arrange PLSDA: Acclimation figures
+```{r supplemental fig 4}
+#extract legend
+legend1 <- get_legend(plsda_acc4_leg)
+grid.newpage()
+grid.draw(legend1)
+
+#combine plots
+plsda_accall <- grid.arrange(plsda_acc1, plsda_acc2, plsda_acc3, plsda_acc4, plsda_acc5, legend1,nrow=2)
+plsda_accall 
+```
+
+
+#Genotype AZ
+```{r prepare dataset: agg_all_AZ}
+#subset only rows in the Genotype AZ from agg_all
+agg_all_AZ <- agg_all[agg_all$ATTRIBUTE_genotype == 'AZ',]
+```
+
+```{r AZ PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_AZ$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_AZ[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+az_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Source Colony: AZ",pch = c(3,4,5))$graph
+az_acc <- az_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('38 Days', '24 Days', '0 Days'), values=c("#2a9d8f","#0d3b66","#B900E5"))
+az_acc
+```
+
+#Genotype BY
+```{r prepare dataset: agg_all_BY}
+#subset only rows in the Genotype BY from agg_all
+agg_all_BY <- agg_all[agg_all$ATTRIBUTE_genotype == 'BY',]
+```
+
+```{r BY PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_BY$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_BY[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+by_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Source Colony: BY",col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+by_acc <- by_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))
+by_acc
+```
+
+#Genotype CX
+```{r prepare dataset: agg_all_CX}
+#subset only rows in the Genotype CX from agg_all
+agg_all_CX <- agg_all[agg_all$ATTRIBUTE_genotype == 'CX',]
+```
+
+```{r CX PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_CX$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_CX[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+cx_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Source Colony: CX",col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+cx_acc <- cx_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))
+cx_acc
+```
+
+#Genotype DW
+```{r prepare dataset: agg_all_DW}
+#subset only rows in the Genotype DW from agg_all
+agg_all_DW <- agg_all[agg_all$ATTRIBUTE_genotype == 'DW',]
+```
+
+```{r DW PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_DW$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_DW[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+dw_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Source Colony: DW",col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+#dw_acc <- dw_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))
+dw_acc
+```
+
+#Genotype EV
+```{r prepare dataset: agg_all_EV}
+#subset only rows in the Genotype EV from agg_all
+agg_all_EV <- agg_all[agg_all$ATTRIBUTE_genotype == 'EV',]
+```
+
+```{r EV PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_EV$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_EV[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+ev_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Source Colony: EV",col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66"))$graph 
+#ev_acc <- ev_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))
+ev_acc
+```
+
+#Genotype FU
+```{r prepare dataset: agg_all_FU}
+#subset only rows in the Genotype FU from agg_all
+agg_all_FU <- agg_all[agg_all$ATTRIBUTE_genotype == 'FU',]
+```
+
+```{r FU PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_FU$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_FU[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+fu_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Source Colony: FU",col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+#fu_acc <- fu_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))
+fu_acc
+```
+
+#Genotype GT
+```{r prepare dataset: agg_all_GT}
+#subset only rows in the Genotype GT from agg_all
+agg_all_GT <- agg_all[agg_all$ATTRIBUTE_genotype == 'GT',]
+```
+
+```{r GT PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_GT$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_GT[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+gt_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Source Colony: GT",col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+#gt_acc <- gt_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))
+gt_acc
+```
+
+#Genotype HS
+```{r prepare dataset: agg_all_HS}
+#subset only rows in the Genotype HS from agg_all
+agg_all_HS <- agg_all[agg_all$ATTRIBUTE_genotype == 'HS',]
+```
+
+```{r HS PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_HS$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_HS[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+hs_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Source Colony: HS",col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+#hs_acc <- hs_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("#3f8cd1", "#f28d0a", "#c2c2c2", "#249e6e", "#c979aa"))
+hs_acc
+```
+
+#Genotype IR
+```{r prepare dataset: agg_all_IR}
+#subset only rows in the Genotype IR from agg_all
+agg_all_IR <- agg_all[agg_all$ATTRIBUTE_genotype == 'IR',]
+```
+
+```{r IR PLSDA: acclimation}
+#select treatment names
+Y <- agg_all_IR$ATTRIBUTE_acclimation
+
+#select only data columns
+X <- agg_all_IR[7:350]
+
+#PLSDA without variable selection
+MyResult.plsda <- mixOmics::plsda(X,Y) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda, cutoff = 0.5)
+
+ir_acc <- plotIndiv(MyResult.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Source Colony: IR",col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+#ir_acc <- ir_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("#3f8cd1", "#f28d0a", "#c2c2c2", "#249e6e", "#c979aa"))
+ir_acc
+```
+
+#Genotype JQ
+```{r prepare dataset: agg_all_JQ}
+#subset only rows in the Genotype JQ from agg_all
+agg_all_JQ <- agg_all[agg_all$ATTRIBUTE_genotype == 'JQ',]
+```
+
+```{r JQ PLSDA: acclimation}
+#select treatment names
+Yjq <- agg_all_JQ$ATTRIBUTE_acclimation
+
+#select only data columns
+Xjq <- agg_all_JQ[7:350]
+
+#PLSDA without variable selection
+JQ.plsda <- mixOmics::plsda(Xjq,Yjq) # 1 Run the method
+plotIndiv(JQ.plsda)    # 2 Plot the samples
+plotVar(JQ.plsda, cutoff = 0.5)
+
+jq_acc <- plotIndiv(JQ.plsda, ind.names = FALSE, legend=TRUE,ellipse = TRUE,title="Source Colony: JQ",size.title = rel(2),col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+jq_acc <- jq_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))
+jq_acc
+
+jq_acc2 <- plotIndiv(JQ.plsda, ind.names = FALSE, legend=FALSE,ellipse = TRUE,title="Source Colony: JQ",size.title = rel(2),col = c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))$graph
+#jq_acc <- jq_acc + scale_color_manual(name = "Days in \nAcclimation \nCage", labels=c('126 Days', '112 Days', '38 Days', '24 Days', '0 Days'), values=c("darkorange","#e9c46a","#2a9d8f","#0d3b66","#B900E5"))
+```
+
+#Arrange plots
+```{r}
+#arrange only PLSDA plots
+plsda_gens <- grid.arrange(by_acc, cx_acc, dw_acc, ev_acc, fu_acc, gt_acc, hs_acc, ir_acc, jq_acc2, ncol = 3)
+plsda_gens
+```
+
+```{r supplemental fig 3}
+#extract legend
+legend <- get_legend(jq_acc)
+grid.newpage()
+grid.draw(legend)
+
+#specify proportions
+layout <- matrix(c(1,1,1,1,2), ncol = 5, byrow = TRUE)
+
+#combine legend and PLSDAs
+figs3 <- grid.arrange(plsda_gens, legend, layout_matrix = layout)
+```
