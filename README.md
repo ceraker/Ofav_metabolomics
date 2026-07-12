@@ -1,7 +1,7 @@
 # Coral metabolomic diversity is associated with restoration success
 *In press*
 
-Catherine Raker 1, Manuel Olmeda-Saldaña 2, Brian E. Sedio 3,4, and Carlos Prada 1\
+Catherine Raker 1, Manuel Olmeda-Saldaña 2, Brian E. Sedio 3,4, and [Carlos Prada](https://github.com/pradac) 1\
 1 College of the Environment and Life Science, University of Rhode Island, Kingston, Rhode Island 02881\
 2 Department of Marine Sciences, University of Puerto Rico, Mayagüez Campus, P.O. Box 9000, Mayagüez 00681, Puerto Rico\
 3 Department of Integrative Biology, University of Texas at Austin, Austin, TX, 78712\
